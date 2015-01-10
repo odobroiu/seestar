@@ -12,13 +12,35 @@
 %%% See the License for the specific language governing permissions and
 %%% limitations under the License.
 
+%% Op Codes
+%% requests.
+-define(STARTUP, 16#01).
+-define(AUTH_RESPONSE, 16#0F).
+-define(OPTIONS, 16#05).
+-define(QUERY, 16#07).
+-define(PREPARE, 16#09).
+-define(EXECUTE, 16#0A).
+-define(BATCH, 16#0D).
+-define(REGISTER, 16#0B).
+%% responses.
+-define(ERROR, 16#00).
+-define(READY, 16#02).
+-define(AUTHENTICATE, 16#03).
+-define(SUPPORTED, 16#06).
+-define(RESULT, 16#08).
+-define(AUTH_CHALLENGE, 16#0E).
+-define(AUTH_SUCCESS, 16#10).
+
+%% event.
+-define(EVENT, 16#0C).
+
 %% requests.
 -record(startup,
         {version = <<"3.0.0">> :: binary(),
          compression :: undefined | binary()}).
 
--record(credentials,
-        {credentials :: [{binary(), binary()}]}).
+-record(auth_response,
+        {body :: binary()}).
 
 -record(options,
         {}).
@@ -43,6 +65,12 @@
 %% responses.
 -record(ready,
         {}).
+
+-record(auth_success,
+        {}).
+
+-record(auth_challenge,
+        {body :: binary()}).
 
 -record(authenticate,
         {class :: binary()}).

@@ -18,7 +18,6 @@
 
 -include("seestar_messages.hrl").
 -include("builtin_types.hrl").
-
 %% API exports.
 -export([start_link/2, start_link/3, start_link/4, stop/1]).
 -export([perform/3, perform_async/3]).
@@ -102,18 +101,20 @@ setup(Pid, Options) ->
     end.
 
 authenticate(Pid, Options) ->
-    Credentials = proplists:get_value(credentials, Options),
+    Authentication = proplists:get_value(auth, Options),
     case request(Pid, #startup{}, true) of
         #ready{} ->
             true;
-        #authenticate{} when Credentials =:= undefined ->
+        #authenticate{} when Authentication =:= undefined ->
             false;
         #authenticate{} ->
-            KVPairs = [ {?l2b(K), ?l2b(V)} || {K, V} <- Credentials ],
-            case request(Pid, #credentials{credentials = KVPairs}, true) of
-                #ready{} -> true;
-                #error{} -> false
-            end
+            {AuthModule, Credentials} = Authentication,
+            SendFunction =  fun(#auth_response{} = Request) ->
+                                {ReqOp, ReqBody} = seestar_messages:encode(Request),
+                                {OpCode, Body} = gen_server:call(Pid, {request, ReqOp, ReqBody, true}),
+                                seestar_messages:decode(OpCode, Body)
+                            end,
+            AuthModule:perform_auth(SendFunction, Credentials)
     end.
 
 set_keyspace(Pid, Options) ->

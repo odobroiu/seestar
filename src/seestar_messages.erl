@@ -20,25 +20,8 @@
 -include("constants.hrl").
 -include("seestar_messages.hrl").
 
-%% requests.
--define(STARTUP, 16#01).
--define(CREDENTIALS, 16#04).
--define(OPTIONS, 16#05).
--define(QUERY, 16#07).
--define(PREPARE, 16#09).
--define(EXECUTE, 16#0A).
--define(REGISTER, 16#0B).
-%% responses.
--define(ERROR, 16#00).
--define(READY, 16#02).
--define(AUTHENTICATE, 16#03).
--define(SUPPORTED, 16#06).
--define(RESULT, 16#08).
-%% event.
--define(EVENT, 16#0C).
-
 -type outgoing() :: #startup{}
-                  | #credentials{}
+                  | #auth_response{}
                   | #options{}
                   | #'query'{}
                   | #prepare{}
@@ -50,7 +33,9 @@
                   | #authenticate{}
                   | #supported{}
                   | #result{}
-                  | #event{}.
+                  | #event{}
+                  | #auth_success{}
+                  | #auth_challenge{}.
 
 -define(VERSION, <<"CQL_VERSION">>).
 -define(COMPRESSION, <<"COMPRESSION">>).
@@ -70,8 +55,8 @@ encode(#startup{version = Version, compression = Compression}) ->
         end,
     {?STARTUP, seestar_types:encode_string_map(KVPairs)};
 
-encode(#credentials{credentials = KVPairs}) ->
-    {?CREDENTIALS, seestar_types:encode_string_map(KVPairs)};
+encode(#auth_response{body = Body}) ->
+    {?AUTH_RESPONSE, Body};
 
 encode(#options{}) ->
     {?OPTIONS, <<>>};
@@ -137,7 +122,11 @@ decode(?RESULT, Body) ->
                          16#03 -> decode_set_keyspace(Rest);
                          16#04 -> decode_prepared(Rest);
                          16#05 -> decode_schema_change(Rest)
-                     end}.
+                     end};
+decode(?AUTH_SUCCESS, _Body) ->
+    #auth_success{};
+decode(?AUTH_CHALLENGE, Body) ->
+    #auth_challenge{body = Body}.
 
 %% -------------------------------------------------------------------------
 %% error details

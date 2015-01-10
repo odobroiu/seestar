@@ -34,4 +34,4 @@ xref:
 	@./rebar skip_deps=true xref
 
 test:
-	@./rebar skip_deps=true eunit
+	@./rebar skip_deps=true eunit suites=seestar_auth_tests
