@@ -46,12 +46,13 @@
         {}).
 
 -record(query_params,
-{consistency        = one       :: atom(),
-    values             = []        :: [seestar_cqltypes:value()],
-    skip_metadata      = false     :: boolean(),
-    page_size          = undefined :: undefined | byte(),
-    paging_state       = undefined :: undefined | byte(),
-    serial_consistency = serial    :: serial | local_serial}).
+    {consistency        = one       :: atom(),
+     types              = []        :: [seestar_cqltypes:type()],
+     values             = []        :: [seestar_cqltypes:value()],
+     skip_metadata      = false     :: boolean(),
+     page_size          = undefined :: undefined | byte(),
+     paging_state       = undefined :: undefined | byte(),
+     serial_consistency = serial    :: serial | local_serial}).
 
 -record('query',
         {'query' :: binary(),
@@ -62,10 +63,7 @@
 
 -record(execute,
         {id :: binary(),
-         types = [] :: [seestar_cqltypes:type()],
-         values = [] :: [seestar_cqltypes:value()],
-         variables :: [binary()],
-         consistency = one :: atom()}).
+         params  :: #query_params{}}).
 
 -record(register,
         {event_types = [] :: [topology_change | status_change | schema_change]}).

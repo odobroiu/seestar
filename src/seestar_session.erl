@@ -199,7 +199,8 @@ prepare(Client, Query) ->
               seestar:consistency()) ->
         {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
 execute(Client, QueryID, Types, Values, Consistency) ->
-    Req = #execute{id = QueryID, types = Types, values = Values, consistency = Consistency},
+    QueryParams = #query_params{values = Values, types = Types, consistency = Consistency},
+    Req = #execute{id = QueryID, params = QueryParams},
     case request(Client, Req, true) of
         #result{result = Result} ->
             {ok, Result};
@@ -208,7 +209,8 @@ execute(Client, QueryID, Types, Values, Consistency) ->
     end.
 
 execute_async(Client, QueryID, Types, Values, Consistency) ->
-    Req = #execute{id = QueryID, types = Types, values = Values, consistency = Consistency},
+    QueryParams = #query_params{values = Values, types = Types, consistency = Consistency},
+    Req = #execute{id = QueryID, params = QueryParams},
     request(Client, Req, false).
 
 request(Client, Request, Sync) ->

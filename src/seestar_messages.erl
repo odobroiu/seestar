@@ -62,23 +62,19 @@ encode(#options{}) ->
     {?OPTIONS, <<>>};
 
 encode(#'query'{'query' = Query, params = QueryParams}) ->
-    Consistency = QueryParams#query_params.consistency,
     {?QUERY, <<
                 (seestar_types:encode_long_string(Query))/binary,
-                (seestar_types:encode_consistency(Consistency))/binary,
                 (encode_query_flags(QueryParams))/binary
              >>};
 
 encode(#prepare{'query' = Query}) ->
     {?PREPARE, seestar_types:encode_long_string(Query)};
 
-encode(#execute{id = ID, types = Types, values = Values, consistency = Consistency}) ->
-    Variables = [ seestar_cqltypes:encode_value_with_size(Type, Value) ||
-                  {Type, Value} <- lists:zip(Types, Values) ],
-    {?EXECUTE, list_to_binary([seestar_types:encode_short_bytes(ID),
-                               seestar_types:encode_short(length(Variables)),
-                               Variables,
-                               seestar_types:encode_consistency(Consistency)])};
+encode(#execute{id = ID, params = QueryParams}) ->
+    {?EXECUTE, <<
+        (seestar_types:encode_short_bytes(ID))/binary,
+        (encode_query_flags(QueryParams))/binary
+        >>};
 
 encode(#register{event_types = Types}) ->
     % assert validity of event types.
@@ -263,7 +259,9 @@ encode_query_flags(QueryParams) ->
     {SerialConsistencyFlag, SerialConsistency} = serial_consistency(QueryParams),
     Flags = << 0:3, SerialConsistencyFlag:1, PagingStateFlag:1, PageSizeFlag:1, SkipMetadataFlag:1, ValueFlag:1 >>,
     <<
-    Flags/binary, Values/binary, ResultPageSize/binary, PagingState/binary, SerialConsistency/binary
+    (seestar_types:encode_consistency(QueryParams#query_params.consistency))/binary,
+    Flags/binary,
+    Values/binary, ResultPageSize/binary, PagingState/binary, SerialConsistency/binary
     >>.
 
 serial_consistency(#query_params{serial_consistency = serial}) ->
@@ -287,8 +285,16 @@ skip_meta(_) ->
 
 values(#query_params{values = []}) ->
     {0, <<>>};
-values(#query_params{values = Values}) when is_list(Values) ->
+values(#query_params{values = Values, types = Types}) when length(Types) == length(Values) ->
+    Variables = << <<(seestar_cqltypes:encode_value_with_size(Type, Value))/binary>>
+        || {Type, Value} <- lists:zip(Types, Values) >>,
+    {1, <<
+    (seestar_types:encode_short(length(Values)))/binary ,
+    Variables/binary>>};
+values(#query_params{values = Values, types = []}) when is_list(Values) ->
+    %% This happens in the case of the unprepared query. Types need to be guessed
+    %% TODO -> Could be a little clearer on the whole process
     Variables = << <<(seestar_cqltypes:encode_value_with_size(Value))/binary>> || Value <- Values >>,
     {1, <<
-        (seestar_types:encode_short(length(Values)))/binary ,
-        Variables/binary>>}.
+    (seestar_types:encode_short(length(Values)))/binary ,
+    Variables/binary>>}.
