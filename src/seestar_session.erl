@@ -22,6 +22,7 @@
 -export([start_link/2, start_link/3, start_link/4, stop/1]).
 -export([perform/3, perform/4, perform_async/3]).
 -export([prepare/2, execute/5, execute_async/5]).
+-export([batch/2, batch_async/2]).
 
 %% gen_server exports.
 -export([init/1, terminate/2, handle_call/3, handle_cast/2, handle_info/2,
@@ -155,7 +156,7 @@ perform(Client, Query, Consistency) ->
 -spec perform(pid(), 'query'(), list(), seestar:consistency()) ->
     {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
 perform(Client, Query, Values, Consistency) ->
-    QueryParams = #query_params{consistency = Consistency, values = Values},
+    QueryParams = #query_params{consistency = Consistency, values = #query_values{values = Values}},
     Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
     case request(Client, Req, true) of
         #result{result = Result} ->
@@ -171,7 +172,7 @@ perform_async(Client, Query, Consistency) ->
 %% @doc Asynchronously perform a CQL query using the specified consistency level.
 -spec perform_async(pid(), 'query'(), list(), seestar:consistency()) -> ok.
 perform_async(Client, Query,Values, Consistency) ->
-    QueryParams = #query_params{consistency = Consistency, values=Values},
+    QueryParams = #query_params{consistency = Consistency, values = #query_values{values = Values}},
     Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
     request(Client, Req, false).
 
@@ -199,7 +200,7 @@ prepare(Client, Query) ->
               seestar:consistency()) ->
         {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
 execute(Client, QueryID, Types, Values, Consistency) ->
-    QueryParams = #query_params{values = Values, types = Types, consistency = Consistency},
+    QueryParams = #query_params{values = #query_values{values = Values, types = Types}, consistency = Consistency},
     Req = #execute{id = QueryID, params = QueryParams},
     case request(Client, Req, true) of
         #result{result = Result} ->
@@ -209,8 +210,23 @@ execute(Client, QueryID, Types, Values, Consistency) ->
     end.
 
 execute_async(Client, QueryID, Types, Values, Consistency) ->
-    QueryParams = #query_params{values = Values, types = Types, consistency = Consistency},
+    QueryParams = #query_params{values = #query_values{values = Values, types = Types}, consistency = Consistency},
     Req = #execute{id = QueryID, params = QueryParams},
+    request(Client, Req, false).
+
+%% @doc Synchronously execute a batch query
+%% Use {@link seestar_batch} module functions to create the request.
+-spec batch(pid(), #batch{})
+        -> {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
+batch(Client, Req) ->
+    case request(Client, Req, true) of
+        #result{result = Result} ->
+            {ok, Result};
+        #error{} = Error ->
+            {error, Error}
+    end.
+
+batch_async(Client, Req) ->
     request(Client, Req, false).
 
 request(Client, Request, Sync) ->

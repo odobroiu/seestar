@@ -5,8 +5,8 @@
 
 query_test_() ->
     {foreach,
-        fun connect/0,
-        fun close/1,
+        fun test_utils:connect/0,
+        fun test_utils:close/1,
         [fun(Pid) -> {with, Pid, [fun test_schema_queries/1]} end
         ,fun(Pid) -> {with, Pid, [fun insert_update_delete/1]} end
         ]}.
@@ -42,7 +42,7 @@ test_schema_queries(Pid) ->
     ?assertEqual(<<"seestar_test_table">>, seestar_error:table(Err1)).
 
 insert_update_delete(Pid) ->
-    create_keyspace(Pid, "seestar", 1),
+    test_utils:create_keyspace(Pid, "seestar", 1),
     {ok, _Res1} = seestar_session:perform(Pid,  "USE seestar", one),
 
     CreateTable = "CREATE TABLE seestar_test_table (id int primary key, value text)",
@@ -69,23 +69,3 @@ insert_update_delete(Pid) ->
     %% Check if row no longer exists
     {ok, SelectResult3} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?" ,[1] , one),
     ?assertEqual([], seestar_result:rows(SelectResult3)).
-
-%% -------------------------------------------------------------------------
-%% Utils
-%% -------------------------------------------------------------------------
-
-connect() ->
-    seestar_ccm:create(),
-    seestar_ccm:start(),
-    timer:sleep(500),
-    {ok, Pid} = seestar_session:start_link("localhost", 9042),
-    unlink(Pid),
-    Pid.
-
-close(Pid) ->
-    seestar_session:stop(Pid),
-    seestar_ccm:remove().
-
-create_keyspace(Pid, Name, RF) ->
-    Qry = "CREATE KEYSPACE ~s WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': ~w}",
-    {ok, _} = seestar_session:perform(Pid, lists:flatten(io_lib:format(Qry, [Name, RF])), one).

@@ -76,6 +76,14 @@ encode(#execute{id = ID, params = QueryParams}) ->
         (encode_query_flags(QueryParams))/binary
         >>};
 
+encode(#batch{type = BatchType, consistency = Consistency, queries = QueriesList}) ->
+    {?BATCH, <<
+        (seestar_types:encode_batch_type(BatchType))/binary,
+        (seestar_types:encode_short(length(QueriesList)))/binary,
+        (encode_batch_queries(QueriesList))/binary,
+        (seestar_types:encode_consistency(Consistency))/binary
+        >>};
+
 encode(#register{event_types = Types}) ->
     % assert validity of event types.
     Unique = lists:usort(Types),
@@ -250,9 +258,31 @@ decode_schema_change(Body) ->
 %% -------------------------------------------------------------------------
 %% Internal
 %% -------------------------------------------------------------------------
+encode_batch_queries(QueriesList) ->
+    << <<(encode_batch_query(Query))/binary>> || Query <- QueriesList >>.
+
+encode_batch_query(#batch_query{kind = prepared, string_or_id = ID, values = Values}) ->
+    {_Flag, EncodedValues} = values(Values),
+    <<
+        (seestar_types:encode_byte(1))/binary,
+        (seestar_types:encode_short_bytes(ID))/binary,
+        EncodedValues/binary
+    >>;
+encode_batch_query(#batch_query{kind = not_prepared, string_or_id = QueryString, values = Values}) ->
+    {_Flag, EncodedValues} = values(Values),
+    <<
+        (seestar_types:encode_byte(0))/binary,
+        (seestar_types:encode_long_string(QueryString))/binary,
+        EncodedValues/binary
+    >>.
 
 encode_query_flags(QueryParams) ->
-    {ValueFlag, Values} = values(QueryParams),
+    {ValueFlag, Values} = case values(QueryParams#query_params.values) of
+                              {0, _Any} ->
+                                  {0, <<>>};
+                              {1, Vals} ->
+                                  {1, Vals}
+                          end,
     SkipMetadataFlag = skip_meta(QueryParams),
     {PageSizeFlag, ResultPageSize} = page_size(QueryParams),
     {PagingStateFlag, PagingState} = paging_state(QueryParams),
@@ -283,15 +313,13 @@ page_size(#query_params{page_size = PageSize}) when is_integer(PageSize) ->
 skip_meta(_) ->
     0.
 
-values(#query_params{values = []}) ->
-    {0, <<>>};
-values(#query_params{values = Values, types = Types}) when length(Types) == length(Values) ->
+values(#query_values{values = Values, types = Types}) when length(Types) == length(Values) ->
     Variables = << <<(seestar_cqltypes:encode_value_with_size(Type, Value))/binary>>
         || {Type, Value} <- lists:zip(Types, Values) >>,
     {1, <<
     (seestar_types:encode_short(length(Values)))/binary ,
     Variables/binary>>};
-values(#query_params{values = Values, types = []}) when is_list(Values) ->
+values(#query_values{values = Values, types = []}) when is_list(Values) ->
     %% This happens in the case of the unprepared query. Types need to be guessed
     %% TODO -> Could be a little clearer on the whole process
     Variables = << <<(seestar_cqltypes:encode_value_with_size(Value))/binary>> || Value <- Values >>,

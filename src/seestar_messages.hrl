@@ -45,14 +45,17 @@
 -record(options,
         {}).
 
+-record(query_values,
+        {types  = []    :: [seestar_cqltypes:type()],
+         values = []    :: [seestar_cqltypes:value()]}).
+
 -record(query_params,
-    {consistency        = one       :: atom(),
-     types              = []        :: [seestar_cqltypes:type()],
-     values             = []        :: [seestar_cqltypes:value()],
-     skip_metadata      = false     :: boolean(),
-     page_size          = undefined :: undefined | byte(),
-     paging_state       = undefined :: undefined | byte(),
-     serial_consistency = serial    :: serial | local_serial}).
+    {consistency        = one               :: atom(),
+     values             = #query_values{}   :: #query_values{},
+     skip_metadata      = false             :: boolean(),
+     page_size          = undefined         :: undefined | byte(),
+     paging_state       = undefined         :: undefined | byte(),
+     serial_consistency = serial            :: serial | local_serial}).
 
 -record('query',
         {'query' :: binary(),
@@ -64,6 +67,16 @@
 -record(execute,
         {id :: binary(),
          params  :: #query_params{}}).
+
+-record(batch_query,
+        {kind                               :: prepared | not_prepared,
+         string_or_id                       :: binary(),
+         values         = #query_values{}   :: #query_values{}
+        }).
+-record(batch,
+        {type       = logged    :: logged | unlogged | counter,
+        queries     = []        :: list(#batch_query{}),
+        consistency = one       :: atom()}).
 
 -record(register,
         {event_types = [] :: [topology_change | status_change | schema_change]}).

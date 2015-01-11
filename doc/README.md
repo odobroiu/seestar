@@ -32,6 +32,7 @@ where CASSANDRA_DIR is the path to the compiled Cassandra directory.
 
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="seestar.md" class="module">seestar</a></td></tr>
+<tr><td><a href="seestar_batch.md" class="module">seestar_batch</a></td></tr>
 <tr><td><a href="seestar_cqltypes.md" class="module">seestar_cqltypes</a></td></tr>
 <tr><td><a href="seestar_error.md" class="module">seestar_error</a></td></tr>
 <tr><td><a href="seestar_event.md" class="module">seestar_event</a></td></tr>

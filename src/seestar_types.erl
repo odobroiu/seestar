@@ -15,8 +15,9 @@
 %%% @private
 -module(seestar_types).
 
--export([encode_int/1, encode_short/1, encode_long_string/1, encode_string_list/1,
-    encode_bytes/1, encode_short_bytes/1, encode_consistency/1, encode_string_map/1, encode_values/1]).
+-export([encode_byte/1, encode_short/1, encode_int/1, encode_long_string/1, encode_string_list/1,
+    encode_bytes/1, encode_short_bytes/1, encode_consistency/1, encode_string_map/1,
+    encode_values/1, encode_batch_type/1]).
 -export([decode_int/1, decode_short/1, decode_string/1, decode_uuid/1, decode_bytes/1,
          decode_short_bytes/1, decode_consistency/1, decode_string_multimap/1]).
 
@@ -24,11 +25,14 @@
 %% encoding functions
 %% -------------------------------------------------------------------------
 
-encode_int(Value) ->
-    <<Value:32>>.
+encode_byte(Value) ->
+    <<Value:8>>.
 
 encode_short(Value) ->
     <<Value:16>>.
+
+encode_int(Value) ->
+    <<Value:32>>.
 
 encode_string(Value) ->
     <<(encode_short(size(Value)))/binary, Value/binary>>.
@@ -60,6 +64,13 @@ encode_consistency(Value) ->
                      local_serial -> 16#09;
                      local_one    -> 16#10
                  end).
+
+encode_batch_type(Value) ->
+    encode_byte(case Value of
+                    logged          -> 16#00;
+                    unlogged        -> 16#01;
+                    counter         -> 16#02
+                end).
 
 encode_string_map(KVPairs) ->
     encode_string_map(KVPairs, []).
