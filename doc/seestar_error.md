@@ -51,9 +51,7 @@ write_type() = simple | batch | unlogged_batch | counter | batch_log
 <pre><code>
 alive(Error::<a href="#type-error">error()</a>) -&gt; integer()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="code-1"></a>
@@ -64,9 +62,7 @@ alive(Error::<a href="#type-error">error()</a>) -&gt; integer()
 <pre><code>
 code(Error::<a href="#type-error">error()</a>) -&gt; integer()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="consistency-1"></a>
@@ -77,9 +73,7 @@ code(Error::<a href="#type-error">error()</a>) -&gt; integer()
 <pre><code>
 consistency(Error::<a href="#type-error">error()</a>) -&gt; <a href="seestar.md#type-consistency">seestar:consistency()</a>
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="data_present-1"></a>
@@ -90,9 +84,7 @@ consistency(Error::<a href="#type-error">error()</a>) -&gt; <a href="seestar.md#
 <pre><code>
 data_present(Error::<a href="#type-error">error()</a>) -&gt; boolean()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="keyspace-1"></a>
@@ -103,9 +95,7 @@ data_present(Error::<a href="#type-error">error()</a>) -&gt; boolean()
 <pre><code>
 keyspace(Error::<a href="#type-error">error()</a>) -&gt; binary()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="message-1"></a>
@@ -116,9 +106,7 @@ keyspace(Error::<a href="#type-error">error()</a>) -&gt; binary()
 <pre><code>
 message(Error::<a href="#type-error">error()</a>) -&gt; binary()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="query_id-1"></a>
@@ -129,9 +117,7 @@ message(Error::<a href="#type-error">error()</a>) -&gt; binary()
 <pre><code>
 query_id(Error::<a href="#type-error">error()</a>) -&gt; binary()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="received-1"></a>
@@ -142,9 +128,7 @@ query_id(Error::<a href="#type-error">error()</a>) -&gt; binary()
 <pre><code>
 received(Error::<a href="#type-error">error()</a>) -&gt; integer()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="required-1"></a>
@@ -155,9 +139,7 @@ received(Error::<a href="#type-error">error()</a>) -&gt; integer()
 <pre><code>
 required(Error::<a href="#type-error">error()</a>) -&gt; integer()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="table-1"></a>
@@ -168,9 +150,7 @@ required(Error::<a href="#type-error">error()</a>) -&gt; integer()
 <pre><code>
 table(Error::<a href="#type-error">error()</a>) -&gt; binary() | undefined
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="write_type-1"></a>
@@ -181,8 +161,6 @@ table(Error::<a href="#type-error">error()</a>) -&gt; binary() | undefined
 <pre><code>
 write_type(Error::<a href="#type-error">error()</a>) -&gt; <a href="#type-write_type">write_type()</a>
 </code></pre>
-
-<br></br>
-
+<br />
 
 

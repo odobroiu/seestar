@@ -20,7 +20,7 @@
 -include("builtin_types.hrl").
 %% API exports.
 -export([start_link/2, start_link/3, start_link/4, stop/1]).
--export([perform/3, perform_async/3]).
+-export([perform/3, perform/4, perform_async/3]).
 -export([prepare/2, execute/5, execute_async/5]).
 
 %% gen_server exports.
@@ -145,24 +145,34 @@ subscribe(Pid, Options) ->
 stop(Client) ->
     gen_server:cast(Client, stop).
 
-%% @doc Synchoronously perform a CQL query using the specified consistency level.
-%% Returns a result of an appropriate type (void, rows, set_keyspace, schema_change).
-%% Use {@link seestar_result} module functions to work with the result.
 -spec perform(pid(), 'query'(), seestar:consistency()) ->
     {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
 perform(Client, Query, Consistency) ->
-    case request(Client, #'query'{'query' = ?l2b(Query), consistency = Consistency}, true) of
+    perform(Client, Query, [], Consistency).
+%% @doc Synchoronously perform a CQL query using the specified consistency level.
+%% Returns a result of an appropriate type (void, rows, set_keyspace, schema_change).
+%% Use {@link seestar_result} module functions to work with the result.
+-spec perform(pid(), 'query'(), list(), seestar:consistency()) ->
+    {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
+perform(Client, Query, Values, Consistency) ->
+    QueryParams = #query_params{consistency = Consistency, values = Values},
+    Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
+    case request(Client, Req, true) of
         #result{result = Result} ->
             {ok, Result};
         #error{} = Error ->
             {error, Error}
     end.
 
-%% TODO doc
-%% @doc Asynchronously perform a CQL query using the specified consistency level.
 -spec perform_async(pid(), 'query'(), seestar:consistency()) -> ok.
 perform_async(Client, Query, Consistency) ->
-    Req = #'query'{'query' = ?l2b(Query), consistency = Consistency},
+    perform_async(Client, Query, [], Consistency).
+%% TODO doc
+%% @doc Asynchronously perform a CQL query using the specified consistency level.
+-spec perform_async(pid(), 'query'(), list(), seestar:consistency()) -> ok.
+perform_async(Client, Query,Values, Consistency) ->
+    QueryParams = #query_params{consistency = Consistency, values=Values},
+    Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
     request(Client, Req, false).
 
 %% @doc Prepare a query for later execution. The response will contain the prepared

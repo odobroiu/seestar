@@ -123,9 +123,7 @@ type() = topology_change | status_change | schema_change
 <pre><code>
 change(Event::<a href="#type-event">event()</a>) -&gt; <a href="#type-topology_change">topology_change()</a> | <a href="#type-status_change">status_change()</a> | <a href="#type-schema_change">schema_change()</a>
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="ip-1"></a>
@@ -136,9 +134,7 @@ change(Event::<a href="#type-event">event()</a>) -&gt; <a href="#type-topology_c
 <pre><code>
 ip(Event::<a href="#type-topology_change_event">topology_change_event()</a> | <a href="#type-status_change_event">status_change_event()</a>) -&gt; <a href="inet.md#type-ip_address">inet:ip_address()</a>
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="keyspace-1"></a>
@@ -149,9 +145,7 @@ ip(Event::<a href="#type-topology_change_event">topology_change_event()</a> | <a
 <pre><code>
 keyspace(Event::<a href="#type-schema_change_event">schema_change_event()</a>) -&gt; binary()
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="port-1"></a>
@@ -162,9 +156,7 @@ keyspace(Event::<a href="#type-schema_change_event">schema_change_event()</a>) -
 <pre><code>
 port(Event::<a href="#type-topology_change_event">topology_change_event()</a> | <a href="#type-status_change_event">status_change_event()</a>) -&gt; <a href="inet.md#type-port_number">inet:port_number()</a>
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="table-1"></a>
@@ -175,9 +167,7 @@ port(Event::<a href="#type-topology_change_event">topology_change_event()</a> | 
 <pre><code>
 table(Event::<a href="#type-schema_change_event">schema_change_event()</a>) -&gt; binary() | undefined
 </code></pre>
-
-<br></br>
-
+<br />
 
 
 <a name="type-1"></a>
@@ -188,8 +178,6 @@ table(Event::<a href="#type-schema_change_event">schema_change_event()</a>) -&gt
 <pre><code>
 type(Event::<a href="#type-event">event()</a>) -&gt; <a href="#type-type">type()</a>
 </code></pre>
-
-<br></br>
-
+<br />
 
 

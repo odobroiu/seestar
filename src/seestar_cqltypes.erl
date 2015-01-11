@@ -16,7 +16,11 @@
 
 -include("builtin_types.hrl").
 
--export([decode_value_with_size/2, encode_value_with_size/2, decode_type/1]).
+-export([
+    decode_value_with_size/2,
+    decode_type/1,
+    encode_value_with_size/2,
+    encode_value_with_size/1]).
 
 -type type() :: native() | {list | set, native()} | {map, native(), native()} | {custom, string()}.
 -type native() :: ascii | bigint | blob | boolean | counter | decimal | double |
@@ -136,6 +140,30 @@ decode_set(Type, Size, Data, Set) ->
 %% -------------------------------------------------------------------------
 %% encoding values
 %% -------------------------------------------------------------------------
+
+%% TODO -> Think more about this
+%% Try to encode the value. This is used for passing values to queries that
+%% are not prepared
+%% Two possible solutions: if a tuple is provided, then the type from the tuple
+%% is used; otherwise the type is going to be guessed. TODO better guesses
+%% Java driver also guesses the type
+%% Third solution would be to get the types from cassandra, eg describe schema when
+%% connects, schema change events... etc..
+
+%% @private
+-spec encode_value_with_size({type(), value()} | value()) -> binary().
+encode_value_with_size({Type, Value}) ->
+    encode_value_with_size(Type, Value);
+encode_value_with_size(Value) when is_boolean(Value) ->
+    encode_value_with_size(boolean, Value);
+encode_value_with_size(Value) when is_integer(Value), (Value > -2147483648), (Value < 2147483647) ->
+    encode_value_with_size(int, Value);
+encode_value_with_size(Value) when is_integer(Value) ->
+    encode_value_with_size(bigint, Value);
+encode_value_with_size(Value) when is_binary(Value) ->
+    encode_value_with_size(varchar, Value);
+encode_value_with_size(Value)->
+    encode_value_with_size(undefined, Value).
 
 %% @private
 -spec encode_value_with_size(type(), value()) -> binary().

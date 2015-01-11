@@ -32,5 +32,4 @@ perform_auth(SendFun, {Username, Password}) when is_function(SendFun), is_binary
 
 encode_credentials(Username, Password) when is_binary(Username), is_binary(Password)->
     Auth = << 0, Username/binary, 0, Password/binary >>,
-    Length = seestar_types:encode_int(size(Auth)),
-    #auth_response{body= << Length/binary, Auth/binary >>}.
+    #auth_response{body= seestar_types:encode_bytes(Auth)}.

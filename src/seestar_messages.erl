@@ -61,9 +61,13 @@ encode(#auth_response{body = Body}) ->
 encode(#options{}) ->
     {?OPTIONS, <<>>};
 
-encode(#'query'{'query' = Query, consistency = Consistency}) ->
-    {?QUERY, <<(seestar_types:encode_long_string(Query))/binary,
-               (seestar_types:encode_consistency(Consistency))/binary>>};
+encode(#'query'{'query' = Query, params = QueryParams}) ->
+    Consistency = QueryParams#query_params.consistency,
+    {?QUERY, <<
+                (seestar_types:encode_long_string(Query))/binary,
+                (seestar_types:encode_consistency(Consistency))/binary,
+                (encode_query_flags(QueryParams))/binary
+             >>};
 
 encode(#prepare{'query' = Query}) ->
     {?PREPARE, seestar_types:encode_long_string(Query)};
@@ -246,3 +250,45 @@ decode_schema_change(Body) ->
                                <<>> -> undefined;
                                _    -> Table
                            end}.
+
+%% -------------------------------------------------------------------------
+%% Internal
+%% -------------------------------------------------------------------------
+
+encode_query_flags(QueryParams) ->
+    {ValueFlag, Values} = values(QueryParams),
+    SkipMetadataFlag = skip_meta(QueryParams),
+    {PageSizeFlag, ResultPageSize} = page_size(QueryParams),
+    {PagingStateFlag, PagingState} = paging_state(QueryParams),
+    {SerialConsistencyFlag, SerialConsistency} = serial_consistency(QueryParams),
+    Flags = << 0:3, SerialConsistencyFlag:1, PagingStateFlag:1, PageSizeFlag:1, SkipMetadataFlag:1, ValueFlag:1 >>,
+    <<
+    Flags/binary, Values/binary, ResultPageSize/binary, PagingState/binary, SerialConsistency/binary
+    >>.
+
+serial_consistency(#query_params{serial_consistency = serial}) ->
+    {0, <<>>};
+
+serial_consistency(#query_params{serial_consistency = local_serial}) ->
+    {1, seestar_types:encode_consistency(local_serial)}.
+
+paging_state(#query_params{paging_state = undefined}) ->
+    {0, <<>>};
+paging_state(#query_params{paging_state = PagingState}) ->
+    {1, seestar_types:encode_bytes(PagingState)}.
+
+page_size(#query_params{page_size = undefined}) ->
+    {0, <<>>};
+page_size(#query_params{page_size = PageSize}) when is_integer(PageSize) ->
+    {1, seestar_types:encode_int(PageSize)}.
+
+skip_meta(_) ->
+    0.
+
+values(#query_params{values = []}) ->
+    {0, <<>>};
+values(#query_params{values = Values}) when is_list(Values) ->
+    Variables = << <<(seestar_cqltypes:encode_value_with_size(Value))/binary>> || Value <- Values >>,
+    {1, <<
+        (seestar_types:encode_short(length(Values)))/binary ,
+        Variables/binary>>}.

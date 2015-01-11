@@ -45,9 +45,17 @@
 -record(options,
         {}).
 
+-record(query_params,
+{consistency        = one       :: atom(),
+    values             = []        :: [seestar_cqltypes:value()],
+    skip_metadata      = false     :: boolean(),
+    page_size          = undefined :: undefined | byte(),
+    paging_state       = undefined :: undefined | byte(),
+    serial_consistency = serial    :: serial | local_serial}).
+
 -record('query',
         {'query' :: binary(),
-         consistency = one :: atom()}).
+         params  :: #query_params{}}).
 
 -record(prepare,
         {'query' :: binary()}).

@@ -16,7 +16,7 @@
 -module(seestar_types).
 
 -export([encode_int/1, encode_short/1, encode_long_string/1, encode_string_list/1,
-    encode_bytes/1, encode_short_bytes/1, encode_consistency/1, encode_string_map/1]).
+    encode_bytes/1, encode_short_bytes/1, encode_consistency/1, encode_string_map/1, encode_values/1]).
 -export([decode_int/1, decode_short/1, decode_string/1, decode_uuid/1, decode_bytes/1,
          decode_short_bytes/1, decode_consistency/1, decode_string_multimap/1]).
 
@@ -55,7 +55,10 @@ encode_consistency(Value) ->
                      quorum       -> 16#04;
                      all          -> 16#05;
                      local_quorum -> 16#06;
-                     each_quorum  -> 16#07
+                     each_quorum  -> 16#07;
+                     serial       -> 16#08;
+                     local_serial -> 16#09;
+                     local_one    -> 16#10
                  end).
 
 encode_string_map(KVPairs) ->
@@ -65,6 +68,10 @@ encode_string_map([], Acc) ->
     list_to_binary([encode_short(length(Acc)), lists:reverse(Acc)]);
 encode_string_map([{K, V}|Rest], Acc) ->
     encode_string_map(Rest, [[encode_string(K), encode_string(V)]|Acc]).
+
+encode_values(Values) when is_list(Values) ->
+    BytesSequence = [encode_bytes(seestar_cqltypes:encode_value_with_size(Value)) || Value <- Values],
+    encode_bytes(BytesSequence).
 
 %% -------------------------------------------------------------------------
 %% decoding functions
