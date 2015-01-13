@@ -2,7 +2,7 @@
 -author("odobroiu").
 
 %% API
--export([connect/0, close/1, create_keyspace/3]).
+-export([connect/0, close/1, create_keyspace/3, drop_keyspace/2]).
 
 connect() ->
     seestar_ccm:create(),
@@ -19,6 +19,10 @@ close(Pid) ->
 create_keyspace(Pid, Name, RF) ->
     Qry = "CREATE KEYSPACE ~s WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': ~w}",
     {ok, _} = seestar_session:perform(Pid, lists:flatten(io_lib:format(Qry, [Name, RF])), one).
+
+drop_keyspace(Pid, Name) ->
+    Qry = "DROP KEYSPACE ~s",
+    {ok, _} = seestar_session:perform(Pid, lists:flatten(io_lib:format(Qry, [Name])), one).
 
 wait_for_cassandra_to_accept_connections(Retries, SleepTime) ->
     CurrentStatus = os:cmd("cqlsh"),

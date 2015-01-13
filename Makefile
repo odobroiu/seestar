@@ -35,3 +35,6 @@ xref:
 
 test:
 	@./rebar skip_deps=true eunit
+
+quick_test:
+	@./rebar skip_deps=true eunit suites=seestar_session_tests
