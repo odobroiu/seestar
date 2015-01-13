@@ -142,7 +142,7 @@ __See also:__ [execute/6](#execute-6).
 
 
 <pre><code>
-execute(Client::pid(), QueryID::<a href="#type-query_id">query_id()</a>, Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>, PageSize::non_neg_integer() | undefined) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
+execute(Client::pid(), Prepared_query::#prepared_query{}, Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>, PageSize::non_neg_integer() | undefined) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
 </code></pre>
 <br />
 
@@ -177,7 +177,7 @@ __See also:__ [execute_async/6](#execute_async-6).
 
 
 <pre><code>
-execute_async(Client::pid(), QueryID::<a href="#type-query_id">query_id()</a>, Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>, PageSize::non_neg_integer() | undefined) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
+execute_async(Client::pid(), Prepared_query::<a href="#type-query_id">query_id()</a>, Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>, PageSize::non_neg_integer() | undefined) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
 </code></pre>
 <br />
 

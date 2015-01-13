@@ -96,7 +96,7 @@ type() = void | rows | set_keyspace | prepared | schema_change
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#change-1">change/1</a></td><td></td></tr><tr><td valign="top"><a href="#has_more_rows-1">has_more_rows/1</a></td><td></td></tr><tr><td valign="top"><a href="#keyspace-1">keyspace/1</a></td><td></td></tr><tr><td valign="top"><a href="#names-1">names/1</a></td><td></td></tr><tr><td valign="top"><a href="#paging_state-1">paging_state/1</a></td><td></td></tr><tr><td valign="top"><a href="#query_id-1">query_id/1</a></td><td></td></tr><tr><td valign="top"><a href="#rows-1">rows/1</a></td><td></td></tr><tr><td valign="top"><a href="#table-1">table/1</a></td><td></td></tr><tr><td valign="top"><a href="#type-1">type/1</a></td><td></td></tr><tr><td valign="top"><a href="#type-2">type/2</a></td><td></td></tr><tr><td valign="top"><a href="#types-1">types/1</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#change-1">change/1</a></td><td></td></tr><tr><td valign="top"><a href="#has_more_rows-1">has_more_rows/1</a></td><td></td></tr><tr><td valign="top"><a href="#keyspace-1">keyspace/1</a></td><td></td></tr><tr><td valign="top"><a href="#names-1">names/1</a></td><td></td></tr><tr><td valign="top"><a href="#query_id-1">query_id/1</a></td><td></td></tr><tr><td valign="top"><a href="#rows-1">rows/1</a></td><td></td></tr><tr><td valign="top"><a href="#table-1">table/1</a></td><td></td></tr><tr><td valign="top"><a href="#type-1">type/1</a></td><td></td></tr><tr><td valign="top"><a href="#type-2">type/2</a></td><td></td></tr><tr><td valign="top"><a href="#types-1">types/1</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -118,7 +118,11 @@ change(Result::<a href="#type-schema_change_result">schema_change_result()</a>) 
 
 ### has_more_rows/1 ###
 
-`has_more_rows(Rows) -> any()`
+
+<pre><code>
+has_more_rows(Rows::<a href="#type-result">result()</a>) -&gt; boolean()
+</code></pre>
+<br />
 
 
 <a name="keyspace-1"></a>
@@ -141,13 +145,6 @@ keyspace(Result::<a href="#type-set_keyspace_result">set_keyspace_result()</a> |
 names(Result::<a href="#type-rows_result">rows_result()</a> | <a href="#type-prepared_result">prepared_result()</a>) -&gt; [binary()]
 </code></pre>
 <br />
-
-
-<a name="paging_state-1"></a>
-
-### paging_state/1 ###
-
-`paging_state(Rows) -> any()`
 
 
 <a name="query_id-1"></a>

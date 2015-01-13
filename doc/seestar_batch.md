@@ -81,7 +81,7 @@ __See also:__ [batch_request/3](#batch_request-3).
 
 
 <pre><code>
-prepared_query(ID::binary(), Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>]) -&gt; <a href="#type-batch_query">batch_query()</a>
+prepared_query(Prepared_query::binary(), Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>]) -&gt; <a href="#type-batch_query">batch_query()</a>
 </code></pre>
 <br />
 

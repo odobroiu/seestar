@@ -51,7 +51,8 @@
          body :: binary(),
          from :: {pid(), reference()},
          sync = true :: boolean(),
-         meta = undefined :: any()}).
+         result_data = undefined :: any(),
+         decode_data = undefined :: any()}).
 
 -record(st,
         {host :: inet:hostname(),
@@ -231,16 +232,16 @@ execute(Client, QueryID, Types, Values, Consistency)->
 %% @see prepare/2.
 %% @see perform/3.
 -spec execute(pid(),
-              query_id(),
+              #prepared_query{},
               [seestar_cqltypes:type()], [seestar_cqltypes:value()],
               seestar:consistency(),
               non_neg_integer() | undefined) ->
         {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-execute(Client, QueryID, Types, Values, Consistency, PageSize) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
+execute(Client, #prepared_query{id = QueryID, cached_result_meta = CachedMeta}, Types, Values, Consistency, PageSize) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize, cached_result_meta = CachedMeta,
         values = #query_values{values = Values, types = Types}},
     Req = #execute{id = QueryID, params = QueryParams},
-    case request(Client, Req, true) of
+    case request(Client, Req, CachedMeta, true) of
         #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
             {ok, Result#rows{initial_query = Req}};
         #result{result = Result} ->
@@ -271,15 +272,15 @@ execute_async(Client, QueryID, Types, Values, Consistency)->
     seestar:consistency(),
     non_neg_integer() | undefined) ->
     {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-execute_async(Client, QueryID, Types, Values, Consistency, PageSize) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
+execute_async(Client, #prepared_query{id = QueryID, cached_result_meta = CachedResultMeta}, Types, Values, Consistency, PageSize) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize, cached_result_meta = CachedResultMeta,
         values = #query_values{values = Values, types = Types}},
     Req = #execute{id = QueryID, params = QueryParams},
     if
         is_number(PageSize)->
-            request_async(Client, Req, Req);
+            request_async(Client, Req, Req, CachedResultMeta);
         true ->
-            request_async(Client, Req, undefined)
+            request_async(Client, Req, undefined, CachedResultMeta)
     end.
 
 %% @doc Synchronously execute a batch query
@@ -298,8 +299,8 @@ batch_async(Client, Req) ->
     request(Client, Req, false).
 
 next_page(Client, #rows{initial_query = Req0, metadata = #metadata{paging_state = PagingState}}) ->
-    Req = next_page_request(Req0, PagingState),
-    case request(Client, Req, true) of
+    {Req, CachedData} = next_page_request(Req0, PagingState),
+    case request(Client, Req, CachedData, true) of
         #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
             {ok, Result#rows{initial_query = Req}};
         #result{result = Result} ->
@@ -309,29 +310,35 @@ next_page(Client, #rows{initial_query = Req0, metadata = #metadata{paging_state 
     end.
 
 next_page_async(Client, #rows{initial_query = Req0, metadata = #metadata{paging_state = PagingState}}) ->
-    Req = next_page_request(Req0, PagingState),
-    request_async(Client, Req, Req).
+    {Req, CachedData} = next_page_request(Req0, PagingState),
+    request_async(Client, Req, Req, CachedData).
 
 next_page_request(#'query'{} = Req0, PagingState) ->
     QueryParams = Req0#'query'.params#query_params{paging_state = PagingState},
-    Req0#query{params = QueryParams};
+    {Req0#query{params = QueryParams}, undefined};
 
 next_page_request(#execute{} = Req0, PagingState) ->
     QueryParams = Req0#execute.params#query_params{paging_state = PagingState},
-    Req0#execute{params = QueryParams}.
+    {Req0#execute{params = QueryParams}, QueryParams#query_params.cached_result_meta}.
 
 request(Client, Request, Sync) ->
+    request(Client, Request, undefined,  Sync).
+
+request(Client, Request, CachedDecodeData, Sync) ->
     {ReqOp, ReqBody} = seestar_messages:encode(Request),
-    case gen_server:call(Client, {request, ReqOp, ReqBody, Sync, undefined}, infinity) of
+    case gen_server:call(Client, {request, ReqOp, ReqBody, Sync, undefined, CachedDecodeData}, infinity) of
         {RespOp, RespBody} ->
-            seestar_messages:decode(RespOp, RespBody);
+            seestar_messages:decode(RespOp, RespBody, CachedDecodeData);
         Ref ->
             Ref
     end.
 
-request_async(Client, Request, ExtraData) ->
+request_async(Client, Request, ResultData) ->
+    request_async(Client, Request, ResultData, undefined).
+
+request_async(Client, Request, ResultData, DecodeData) ->
     {ReqOp, ReqBody} = seestar_messages:encode(Request),
-    gen_server:call(Client, {request, ReqOp, ReqBody, false, ExtraData}, infinity).
+    gen_server:call(Client, {request, ReqOp, ReqBody, false, ResultData, DecodeData}, infinity).
 
 %% -------------------------------------------------------------------------
 %% gen_server callback functions
@@ -355,16 +362,17 @@ terminate(_Reason, _St) ->
     ok.
 
 %% @private
-handle_call({request, Op, Body, Sync, Meta}, From, #st{free_ids = []} = St) ->
-    Req = #req{op = Op, body = Body, from = From, sync = Sync, meta = Meta},
+handle_call({request, Op, Body, Sync, ResultData, DecodeData}, From, #st{free_ids = []} = St) ->
+    Req = #req{op = Op, body = Body, from = From, sync = Sync, result_data = ResultData, decode_data = DecodeData},
     {noreply, St#st{backlog = queue:in(Req, St#st.backlog)}};
 
-handle_call({request, Op, Body, Sync, Meta}, {_Pid, Ref} = From, St) ->
+handle_call({request, Op, Body, Sync, ResultData, DecodeData}, {_Pid, Ref} = From, St) ->
     case Sync of
         true  -> ok;
         false -> gen_server:reply(From, Ref)
     end,
-    case send_request(#req{op = Op, body = Body, from = From, sync = Sync, meta = Meta}, St) of
+    case send_request(
+        #req{op = Op, body = Body, from = From, sync = Sync, result_data = ResultData, decode_data = DecodeData}, St) of
         {ok, St1}       -> {noreply, St1};
         {error, Reason} -> {stop, {socket_error, Reason}, St}
     end;
@@ -372,12 +380,13 @@ handle_call({request, Op, Body, Sync, Meta}, {_Pid, Ref} = From, St) ->
 handle_call(Request, _From, St) ->
     {stop, {unexpected_call, Request}, St}.
 
-send_request(#req{op = Op, body = Body, from = From, sync = Sync, meta = Meta}, St) ->
+send_request(
+    #req{op = Op, body = Body, from = From, sync = Sync, result_data = ResultData, decode_data = DecodeData}, St) ->
     ID = hd(St#st.free_ids),
     Frame = seestar_frame:new(ID, [], Op, Body),
     case gen_tcp:send(St#st.sock, seestar_frame:encode(Frame)) of
         ok ->
-            ets:insert(St#st.reqs, {ID, From, Sync, Meta}),
+            ets:insert(St#st.reqs, {ID, From, Sync, ResultData, DecodeData}),
             {ok, St#st{free_ids = tl(St#st.free_ids)}};
         {error, _Reason} = Error ->
             Error
@@ -419,21 +428,21 @@ handle_event(_Frame, St) ->
 
 handle_response(Frame, St) ->
     ID = seestar_frame:id(Frame),
-    [{ID, From, Sync, Meta}] = ets:lookup(St#st.reqs, ID),
+    [{ID, From, Sync, ResultData, DecodeData}] = ets:lookup(St#st.reqs, ID),
     ets:delete(St#st.reqs, ID),
     Op = seestar_frame:opcode(Frame),
     Body = seestar_frame:body(Frame),
     case Sync of
         true  -> gen_server:reply(From, {Op, Body});
-        false -> reply_async(From, Op, Body, Meta)
+        false -> reply_async(From, Op, Body, ResultData, DecodeData)
     end,
     St#st{free_ids = [ID|St#st.free_ids]}.
 
-reply_async({Pid, Ref}, Op, Body, Meta) ->
+reply_async({Pid, Ref}, Op, Body, ResultMeta, DecodeMeta) ->
     F = fun() ->
-            case seestar_messages:decode(Op, Body) of
+            case seestar_messages:decode(Op, Body, DecodeMeta) of
                 #result{result = #rows{} = Result} ->
-                    {ok, Result#rows{initial_query = Meta}};
+                    {ok, Result#rows{initial_query = ResultMeta}};
                 #result{result = Result} ->
                     {ok, Result};
                 #error{} = Error ->

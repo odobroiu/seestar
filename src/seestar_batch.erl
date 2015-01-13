@@ -12,7 +12,7 @@
 %% @doc Return a prepared query that can be added to batch request
 %% @see batch_request/3.
 -spec prepared_query(binary(), list(seestar_cqltypes:type()), list(seestar_cqltypes:value())) -> batch_query().
-prepared_query(ID, Types, Values) ->
+prepared_query(#prepared_query{id = ID, cached_result_meta = _CachedMeta}, Types, Values) ->
     #batch_query{kind = prepared, string_or_id = ID, values = #query_values{values = Values, types = Types}}.
 
 %% @doc Return a normal query that can be added to batch request

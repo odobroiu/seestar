@@ -15,7 +15,7 @@
 %%% @private
 -module(seestar_messages).
 
--export([encode/1, decode/2]).
+-export([encode/1, decode/3]).
 
 -include("constants.hrl").
 -include("seestar_messages.hrl").
@@ -95,8 +95,8 @@ encode(#register{event_types = Types}) ->
 %% decoding functions
 %% -------------------------------------------------------------------------
 
--spec decode(seestar_frame:opcode(), binary()) -> incoming().
-decode(?ERROR, Body) ->
+-spec decode(seestar_frame:opcode(), binary(), any()) -> incoming().
+decode(?ERROR, Body, _CachedDecodeData) ->
     {Code, Rest0} = seestar_types:decode_int(Body),
     {Message, Rest1} = seestar_types:decode_string(Rest0),
     #error{code = Code,
@@ -110,30 +110,30 @@ decode(?ERROR, Body) ->
                          _               -> undefined
                      end};
 
-decode(?READY, _Body) ->
+decode(?READY, _Body, _CachedDecodeData) ->
     #ready{};
 
-decode(?AUTHENTICATE, Body) ->
+decode(?AUTHENTICATE, Body, _CachedDecodeData) ->
     {Class, _} = seestar_types:decode_string(Body),
     #authenticate{class = Class};
 
-decode(?SUPPORTED, Body) ->
+decode(?SUPPORTED, Body, _CachedDecodeData) ->
     {KVPairs, _} = seestar_types:decode_string_multimap(Body),
     #supported{versions = proplists:get_value(?VERSION, KVPairs),
                compression = proplists:get_value(?COMPRESSION, KVPairs)};
 
-decode(?RESULT, Body) ->
+decode(?RESULT, Body, CachedDecodeData) ->
     {Kind, Rest} = seestar_types:decode_int(Body),
     #result{result = case Kind of
                          16#01 -> void;
-                         16#02 -> decode_rows(Rest);
+                         16#02 -> decode_rows(Rest, CachedDecodeData);
                          16#03 -> decode_set_keyspace(Rest);
                          16#04 -> decode_prepared(Rest);
                          16#05 -> decode_schema_change(Rest)
                      end};
-decode(?AUTH_SUCCESS, _Body) ->
+decode(?AUTH_SUCCESS, _Body, _CachedDecodeData) ->
     #auth_success{};
-decode(?AUTH_CHALLENGE, Body) ->
+decode(?AUTH_CHALLENGE, Body, _CachedDecodeData) ->
     #auth_challenge{body = Body}.
 
 %% -------------------------------------------------------------------------
@@ -182,10 +182,16 @@ decode_unprepared(Data) ->
 %% different result types
 %% -------------------------------------------------------------------------
 
-decode_rows(Body) ->
+decode_rows(Body, undefined) ->
     {Meta, Rest0} = decode_metadata(Body),
     {Count, Rest1} = seestar_types:decode_int(Rest0),
-    #rows{metadata = Meta, rows = decode_rows(Meta#metadata.columns, Rest1, Count)}.
+    MetaMetadataColumns = Meta#metadata.columns,
+    Rows = decode_rows(MetaMetadataColumns, Rest1, Count),
+    #rows{metadata = Meta, rows = Rows};
+decode_rows(Body, #metadata{columns = Columns}) ->
+    {Meta, Rest0} = decode_metadata(Body),
+    {Count, Rest1} = seestar_types:decode_int(Rest0),
+    #rows{metadata = Meta, rows = decode_rows(Columns, Rest1, Count)}.
 
 decode_rows(Columns, Data, Count) ->
     decode_rows(Columns, Data, Count, []).
@@ -209,9 +215,15 @@ decode_metadata(Data) ->
     {Flags, Rest0} = seestar_types:decode_int(Data),
     {Count, Rest1} = seestar_types:decode_int(Rest0),
     {HasMorePages, PagingState, Rest2} = decode_paging_state(<<Flags:8>>, Rest1),
-    {TableSpec, Rest3} = decode_table_spec(<<Flags:8>>, Rest2),
+    {Columns, Rest3} = maybe_decode_columns(<<Flags:8>>, Count, Rest2),
+    {#metadata{has_more_results = HasMorePages, paging_state = PagingState, columns = Columns}, Rest3}.
+
+maybe_decode_columns(<<_Other:5, 1:1, _Any:2>>, _Count, Rest2) ->
+    {[], Rest2};
+maybe_decode_columns(<<_Other:5, 0:1, _Any:2>> = Flags, Count, Rest2) ->
+    {TableSpec, Rest3} = decode_table_spec(Flags, Rest2),
     {Columns, Rest4} = decode_column_specs(TableSpec, Rest3, Count),
-    {#metadata{has_more_results = HasMorePages, paging_state = PagingState, columns = Columns}, Rest4}.
+    {Columns, Rest4}.
 
 decode_paging_state(<<_Other:6, 0:1, _Any:1>>, Rest1) ->
     {false, undefined, Rest1};
@@ -252,8 +264,9 @@ decode_set_keyspace(Body) ->
 
 decode_prepared(Body) ->
     {ID, Rest} = seestar_types:decode_short_bytes(Body),
-    {Meta, _} = decode_metadata(Rest),
-    #prepared{id = ID, metadata = Meta}.
+    {RequestMetadata, Rest1} = decode_metadata(Rest),
+    {ResultMetadata, _Rest2} = decode_metadata(Rest1),
+    #prepared{id = ID, result_metadata = ResultMetadata, request_metadata = RequestMetadata}.
 
 decode_schema_change(Body) ->
     {Change, Rest} = seestar_types:decode_string(Body),
@@ -320,8 +333,10 @@ page_size(#query_params{page_size = undefined}) ->
 page_size(#query_params{page_size = PageSize}) when is_integer(PageSize) ->
     {1, seestar_types:encode_int(PageSize)}.
 
-skip_meta(_) ->
-    0.
+skip_meta(#query_params{cached_result_meta = undefined}) ->
+    0;
+skip_meta(#query_params{cached_result_meta = #metadata{}}) ->
+    1.
 
 values(#query_values{values = Values, types = Types}) when length(Types) == length(Values) ->
     Variables = << <<(seestar_cqltypes:encode_value_with_size(Type, Value))/binary>>

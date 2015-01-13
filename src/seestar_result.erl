@@ -56,19 +56,19 @@ rows(#rows{rows = Rows}) ->
 -spec names(Result :: rows_result() | prepared_result()) -> [binary()].
 names(#rows{metadata = Columns}) ->
     [ C#column.name || C <- Columns ];
-names(#prepared{metadata = Columns}) ->
+names(#prepared{request_metadata = Columns}) ->
     [ C#column.name || C <- Columns ].
 
 -spec types(Result :: rows_result() | prepared_result()) -> [seestar_cqltypes:type()].
 types(#rows{metadata = #metadata{columns = Columns}}) ->
     [ C#column.type || C <- Columns ];
-types(#prepared{metadata = #metadata{columns = Columns}}) ->
+types(#prepared{request_metadata = #metadata{columns = Columns}}) ->
     [ C#column.type || C <- Columns ].
 
 -spec type(Result :: rows_result() | prepared_result(), Name :: binary()) -> seestar_cqltypes:type().
 type(#rows{metadata = Columns}, Name) ->
     hd([ C#column.type || C <- Columns, C#column.name =:= Name ]);
-type(#prepared{metadata = Columns}, Name) ->
+type(#prepared{request_metadata = Columns}, Name) ->
     hd([ C#column.type || C <- Columns, C#column.name =:= Name ]).
 
 -spec keyspace(Result :: set_keyspace_result() | schema_change_result()) -> binary().
@@ -82,8 +82,8 @@ table(#schema_change{table = Table}) ->
     Table.
 
 -spec query_id(Result :: prepared_result()) -> binary().
-query_id(#prepared{id = ID}) ->
-    ID.
+query_id(#prepared{id = ID, result_metadata = ResultMetadata}) ->
+    #prepared_query{id = ID, cached_result_meta = ResultMetadata}.
 
 -spec change(Result :: schema_change_result()) -> change().
 change(#schema_change{change = Change}) ->

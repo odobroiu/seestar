@@ -34,6 +34,19 @@
 %% event.
 -define(EVENT, 16#0C).
 
+%% Used in other records TODO -> Move
+-record(column,
+{keyspace :: binary(),
+    table :: binary(),
+    name :: binary(),
+    type :: seestar_cqltypes:type()}).
+
+-record(metadata,
+{has_more_results   = false     :: boolean(),
+    paging_state       = undefined :: binary(),
+    columns            = undefined :: [#column{}]
+}).
+
 %% requests.
 -record(startup,
         {version = <<"3.0.0">> :: binary(),
@@ -52,7 +65,7 @@
 -record(query_params,
     {consistency        = one               :: atom(),
      values             = #query_values{}   :: #query_values{},
-     skip_metadata      = false             :: boolean(),
+     cached_result_meta = undefined         :: #metadata{},
      page_size          = undefined         :: undefined | byte(),
      paging_state       = undefined         :: undefined | byte(),
      serial_consistency = serial            :: serial | local_serial}).
@@ -134,18 +147,6 @@
                   | #unprepared{}}).
 
 %% result and various result sub-types.
--record(column,
-        {keyspace :: binary(),
-         table :: binary(),
-         name :: binary(),
-         type :: seestar_cqltypes:type()}).
-
--record(metadata,
-        {has_more_results   = false     :: boolean(),
-         paging_state       = undefined :: binary(),
-         columns            = undefined :: [#column{}]
-        }).
-
 -record(rows,
         {metadata :: #metadata{},
          rows :: [[seestar_cqltypes:value()]],
@@ -157,7 +158,8 @@
 
 -record(prepared,
         {id :: binary(),
-         metadata :: [#column{}]}).
+         request_metadata :: #metadata{},
+         result_metadata :: #metadata{}}).
 
 %% also an event.
 -record(schema_change,
@@ -187,3 +189,10 @@
         {event :: #topology_change{}
                 | #status_change{}
                 | #schema_change{}}).
+
+%% TODO -> Move elsewhere
+-record(prepared_query,
+        {
+         id :: binary(),
+         cached_result_meta :: #metadata{}
+        }).
