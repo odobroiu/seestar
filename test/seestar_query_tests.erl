@@ -43,29 +43,29 @@ test_schema_queries(Pid) ->
 
 insert_update_delete(Pid) ->
     test_utils:create_keyspace(Pid, "seestar", 1),
-    {ok, _Res1} = seestar_session:perform(Pid,  "USE seestar", one),
+    {ok, _Res1} = seestar_session:perform(Pid, "USE seestar", one),
 
     CreateTable = "CREATE TABLE seestar_test_table (id int primary key, value text)",
     {ok, _Res2} = seestar_session:perform(Pid, CreateTable, one),
 
     %% Insert a row
-    {ok, void} = seestar_session:perform(Pid, "INSERT INTO seestar_test_table(id, value) values (?, ?)" ,[1, <<"The quick brown fox">>] , one),
+    {ok, void} = seestar_session:perform(Pid, "INSERT INTO seestar_test_table(id, value) values (?, ?)", one, [1, <<"The quick brown fox">>]),
 
     %% Check if row exists
-    {ok, SelectResult} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?" ,[1] , one),
+    {ok, SelectResult} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?", one, [1]),
     ?assertEqual(2, length(seestar_result:types(SelectResult))),
     ?assertEqual([[1, <<"The quick brown fox">>]], seestar_result:rows(SelectResult)),
 
     %% Update row
-    {ok, void} = seestar_session:perform(Pid, "UPDATE seestar_test_table set value = ? where id = ?" ,[<<"UpdatedText">>,1], one),
+    {ok, void} = seestar_session:perform(Pid, "UPDATE seestar_test_table set value = ? where id = ?", one, [<<"UpdatedText">>, 1]),
 
     %% Check if updated
-    {ok, SelectResult2} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?" ,[1] , one),
+    {ok, SelectResult2} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?", one, [1]),
     ?assertEqual([[1, <<"UpdatedText">>]], seestar_result:rows(SelectResult2)),
 
     %% Delete Row
-    {ok, void} = seestar_session:perform(Pid, "DELETE FROM seestar_test_table where id = ?" ,[1] , one),
+    {ok, void} = seestar_session:perform(Pid, "DELETE FROM seestar_test_table where id = ?", one, [1]),
 
     %% Check if row no longer exists
-    {ok, SelectResult3} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?" ,[1] , one),
+    {ok, SelectResult3} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?", one, [1]),
     ?assertEqual([], seestar_result:rows(SelectResult3)).

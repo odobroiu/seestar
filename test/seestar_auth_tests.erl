@@ -9,7 +9,7 @@ auth_test_() ->
             seestar_ccm:create(),
             seestar_ccm:update_config(["authenticator:PasswordAuthenticator"]),
             seestar_ccm:start(),
-            timer:sleep(20000)
+            wait_for_cassandra_to_accept_auth_requests(1000)
         end,
         fun(_) ->
             seestar_ccm:remove()
@@ -33,3 +33,19 @@ single_test_function() ->
         [{auth , {seestar_password_auth, {<<"cassandra">>, <<"cassandra">>}}}]),
     unlink(Pid),
     seestar_session:stop(Pid).
+
+%% -------------------------------------------------------------------------
+%% Internal
+%% -------------------------------------------------------------------------
+
+wait_for_cassandra_to_accept_auth_requests(SleepTime) ->
+    CurrentStatus = os:cmd("cqlsh -u cassandra -p cassandra"),
+    case re:run(CurrentStatus, "AuthenticationException", [{capture, first, list}]) of
+        nomatch ->
+            ?debugMsg("Cassandra PasswordAuth ready ... "),
+            ok;
+        {match,["AuthenticationException"]} ->
+            ?debugFmt("Waiting for cass password auth to be ready. Sleeping ~p ..." , [SleepTime]),
+            timer:sleep(SleepTime),
+            wait_for_cassandra_to_accept_auth_requests(SleepTime)
+    end.

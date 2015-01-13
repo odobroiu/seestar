@@ -17,7 +17,7 @@
 -include("seestar_messages.hrl").
 
 -export([type/1, rows/1, names/1, types/1, type/2, keyspace/1, table/1, query_id/1,
-         change/1]).
+    change/1, has_more_rows/1]).
 
 -type rows_result() :: #rows{}.
 -type set_keyspace_result() :: #set_keyspace{}.
@@ -60,9 +60,9 @@ names(#prepared{metadata = Columns}) ->
     [ C#column.name || C <- Columns ].
 
 -spec types(Result :: rows_result() | prepared_result()) -> [seestar_cqltypes:type()].
-types(#rows{metadata = Columns}) ->
+types(#rows{metadata = #metadata{columns = Columns}}) ->
     [ C#column.type || C <- Columns ];
-types(#prepared{metadata = Columns}) ->
+types(#prepared{metadata = #metadata{columns = Columns}}) ->
     [ C#column.type || C <- Columns ].
 
 -spec type(Result :: rows_result() | prepared_result(), Name :: binary()) -> seestar_cqltypes:type().
@@ -88,3 +88,7 @@ query_id(#prepared{id = ID}) ->
 -spec change(Result :: schema_change_result()) -> change().
 change(#schema_change{change = Change}) ->
     Change.
+
+-spec has_more_rows(result()) -> boolean().
+has_more_rows(#rows{metadata = #metadata{has_more_results = HasMoreRows}}) ->
+    HasMoreRows.

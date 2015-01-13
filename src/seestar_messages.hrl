@@ -140,9 +140,17 @@
          name :: binary(),
          type :: seestar_cqltypes:type()}).
 
+-record(metadata,
+        {has_more_results   = false     :: boolean(),
+         paging_state       = undefined :: binary(),
+         columns            = undefined :: [#column{}]
+        }).
+
 -record(rows,
-        {metadata :: [#column{}],
-         rows :: [[seestar_cqltypes:value()]]}).
+        {metadata :: #metadata{},
+         rows :: [[seestar_cqltypes:value()]],
+         initial_query = undefined :: #execute{} | #'query'{} %% used for fetching the next page
+        }).
 
 -record(set_keyspace,
         {keyspace :: binary()}).

@@ -185,34 +185,49 @@ decode_unprepared(Data) ->
 decode_rows(Body) ->
     {Meta, Rest0} = decode_metadata(Body),
     {Count, Rest1} = seestar_types:decode_int(Rest0),
-    #rows{metadata = Meta, rows = decode_rows(Meta, Rest1, Count)}.
+    #rows{metadata = Meta, rows = decode_rows(Meta#metadata.columns, Rest1, Count)}.
 
-decode_rows(Meta, Data, Count) ->
-    decode_rows(Meta, Data, Count, []).
+decode_rows(Columns, Data, Count) ->
+    decode_rows(Columns, Data, Count, []).
 
 decode_rows(_, _, 0, Acc) ->
     lists:reverse(Acc);
-decode_rows(Meta, Data, Count, Acc) ->
-    {Row, Rest} = decode_row(Meta, Data),
-    decode_rows(Meta, Rest, Count - 1, [Row|Acc]).
+decode_rows(Columns, Data, Count, Acc) ->
+    {Row, Rest} = decode_row(Columns, Data),
+    decode_rows(Columns, Rest, Count - 1, [Row|Acc]).
 
-decode_row(Meta, Data) ->
-    decode_row(Meta, Data, []).
+decode_row(Columns, Data) ->
+    decode_row(Columns, Data, []).
 
 decode_row([], Data, Row) ->
     {lists:reverse(Row), Data};
-decode_row([#column{type = Type}|Meta], Data, Row) ->
+decode_row([#column{type = Type}| Columns], Data, Row) ->
     {Value, Rest} = seestar_cqltypes:decode_value_with_size(Type, Data),
-    decode_row(Meta, Rest, [Value|Row]).
+    decode_row(Columns, Rest, [Value|Row]).
 
 decode_metadata(Data) ->
     {Flags, Rest0} = seestar_types:decode_int(Data),
     {Count, Rest1} = seestar_types:decode_int(Rest0),
-    {TableSpec, Rest2} = case Flags of
-                             16#00 -> {undefined, Rest1};
-                             16#01 -> decode_table_spec(Rest1)
-                         end,
-    decode_column_specs(TableSpec, Rest2, Count).
+    {HasMorePages, PagingState, Rest2} = decode_paging_state(<<Flags:8>>, Rest1),
+    {TableSpec, Rest3} = decode_table_spec(<<Flags:8>>, Rest2),
+    {Columns, Rest4} = decode_column_specs(TableSpec, Rest3, Count),
+    {#metadata{has_more_results = HasMorePages, paging_state = PagingState, columns = Columns}, Rest4}.
+
+decode_paging_state(<<_Other:6, 0:1, _Any:1>>, Rest1) ->
+    {false, undefined, Rest1};
+decode_paging_state(<<_Other:6, 1:1, _Any:1>>, Rest1) ->
+    {PagingState, Rest2} = seestar_types:decode_bytes(Rest1),
+    {true, PagingState, Rest2}.
+
+decode_table_spec(<<_Other:7, 0:1>>, Data) ->
+    {undefined, Data};
+decode_table_spec(<<_Other:7, 1:1>>, Data) ->
+    decode_table_spec(Data).
+
+decode_table_spec(Data) ->
+    {Keyspace, Rest0} = seestar_types:decode_string(Data),
+    {Table, Rest1} = seestar_types:decode_string(Rest0),
+    {{Keyspace, Table}, Rest1}.
 
 decode_column_specs(TableSpec, Data, Count) ->
     decode_column_specs(TableSpec, Data, Count, []).
@@ -230,11 +245,6 @@ decode_column_spec({Keyspace, Table}, Data) ->
     {Name, Rest0} = seestar_types:decode_string(Data),
     {Type, Rest1} = seestar_cqltypes:decode_type(Rest0),
     {#column{keyspace = Keyspace, table = Table, name = Name, type = Type}, Rest1}.
-
-decode_table_spec(Data) ->
-    {Keyspace, Rest0} = seestar_types:decode_string(Data),
-    {Table, Rest1} = seestar_types:decode_string(Rest0),
-    {{Keyspace, Table}, Rest1}.
 
 decode_set_keyspace(Body) ->
     {Keyspace, _} = seestar_types:decode_string(Body),

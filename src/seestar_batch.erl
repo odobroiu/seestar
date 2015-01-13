@@ -22,6 +22,7 @@ normal_query(Query, Values) ->
     #batch_query{kind = not_prepared, string_or_id = Query, values = #query_values{values = Values}}.
 
 %% @doc Return a batch request that can be sent to cassandra
+%% Use {@link seestar_session} module to send the request
 %% @see seestar_session:batch/2.
 %% @see seestar_session:batch_async/2.
 -spec batch_request(logged | unlogged | counter, one | atom(), list(batch_query())) -> batch_request().

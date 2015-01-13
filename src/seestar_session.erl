@@ -20,8 +20,12 @@
 -include("builtin_types.hrl").
 %% API exports.
 -export([start_link/2, start_link/3, start_link/4, stop/1]).
--export([perform/3, perform/4, perform_async/3]).
--export([prepare/2, execute/5, execute_async/5]).
+-export([perform/3, perform/4, perform/5]).
+-export([perform_async/3, perform_async/4, perform_async/5]).
+-export([prepare/2]).
+-export([execute/3, execute/4, execute/5, execute/6]).
+-export([execute_async/3, execute_async/4, execute_async/5, execute_async/6]).
+-export([next_page/2, next_page_async/2]).
 -export([batch/2, batch_async/2]).
 
 %% gen_server exports.
@@ -46,7 +50,8 @@
         {op :: seestar_frame:opcode(),
          body :: binary(),
          from :: {pid(), reference()},
-         sync = true :: boolean()}).
+         sync = true :: boolean(),
+         meta = undefined :: any()}).
 
 -record(st,
         {host :: inet:hostname(),
@@ -111,9 +116,7 @@ authenticate(Pid, Options) ->
         #authenticate{} ->
             {AuthModule, Credentials} = Authentication,
             SendFunction =  fun(#auth_response{} = Request) ->
-                                {ReqOp, ReqBody} = seestar_messages:encode(Request),
-                                {OpCode, Body} = gen_server:call(Pid, {request, ReqOp, ReqBody, true}),
-                                seestar_messages:decode(OpCode, Body)
+                                request(Pid, Request, true)
                             end,
             AuthModule:perform_auth(SendFunction, Credentials)
     end.
@@ -146,35 +149,55 @@ subscribe(Pid, Options) ->
 stop(Client) ->
     gen_server:cast(Client, stop).
 
--spec perform(pid(), 'query'(), seestar:consistency()) ->
-    {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
+%% @see perform/5
 perform(Client, Query, Consistency) ->
-    perform(Client, Query, [], Consistency).
+    perform(Client, Query, Consistency, []).
+
+%% @see perform/5
+perform(Client, Query, Consistency, Values) when is_list(Values) ->
+    perform(Client, Query, Consistency, Values, undefined);
+perform(Client, Query, Consistency, PageSize) ->
+    perform(Client, Query, Consistency, [], PageSize).
+
 %% @doc Synchoronously perform a CQL query using the specified consistency level.
 %% Returns a result of an appropriate type (void, rows, set_keyspace, schema_change).
 %% Use {@link seestar_result} module functions to work with the result.
--spec perform(pid(), 'query'(), list(), seestar:consistency()) ->
-    {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-perform(Client, Query, Values, Consistency) ->
-    QueryParams = #query_params{consistency = Consistency, values = #query_values{values = Values}},
+perform(Client, Query, Consistency, Values, PageSize) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
+        values = #query_values{values = Values}},
     Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
     case request(Client, Req, true) of
+        #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
+            {ok, Result#rows{initial_query = Req}};
         #result{result = Result} ->
             {ok, Result};
         #error{} = Error ->
             {error, Error}
     end.
 
--spec perform_async(pid(), 'query'(), seestar:consistency()) -> ok.
+%% @see perform_async/5
 perform_async(Client, Query, Consistency) ->
-    perform_async(Client, Query, [], Consistency).
+    perform_async(Client, Query, Consistency, []).
+
+%% @see perform_async/5
+perform_async(Client, Query, Consistency, Values) when is_list(Values) ->
+    perform_async(Client, Query, Consistency, Values, undefined);
+perform_async(Client, Query, Consistency, PageSize) ->
+    perform_async(Client, Query, Consistency, [], PageSize).
+
 %% TODO doc
 %% @doc Asynchronously perform a CQL query using the specified consistency level.
--spec perform_async(pid(), 'query'(), list(), seestar:consistency()) -> ok.
-perform_async(Client, Query,Values, Consistency) ->
-    QueryParams = #query_params{consistency = Consistency, values = #query_values{values = Values}},
+-spec perform_async(pid(), 'query'(), seestar:consistency(), [seestar_cqltypes:value()], non_neg_integer()) -> ok.
+perform_async(Client, Query, Consistency, Values, PageSize) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
+        values = #query_values{values = Values}},
     Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
-    request(Client, Req, false).
+    if
+        is_number(PageSize)->
+            request_async(Client, Req, Req);
+        true ->
+            request_async(Client, Req, undefined)
+    end.
 
 %% @doc Prepare a query for later execution. The response will contain the prepared
 %% query id and column metadata for all the variables (if any).
@@ -190,6 +213,19 @@ prepare(Client, Query) ->
             {error, Error}
     end.
 
+%% @see execute/6
+execute(Client, Query, Consistency) ->
+    execute(Client, Query, Consistency, undefined).
+
+%% @see execute/6
+execute(Client, Query, Consistency, PageSize) ->
+    execute(Client, Query, [], [], Consistency, PageSize).
+
+%% @see execute/6
+execute(Client, QueryID, Types, Values, Consistency)->
+    execute(Client, QueryID, Types, Values, Consistency, undefined).
+
+
 %% @doc Synchronously execute a prepared query using the specified consistency level.
 %% Use {@link seestar_result} module functions to work with the result.
 %% @see prepare/2.
@@ -197,22 +233,54 @@ prepare(Client, Query) ->
 -spec execute(pid(),
               query_id(),
               [seestar_cqltypes:type()], [seestar_cqltypes:value()],
-              seestar:consistency()) ->
+              seestar:consistency(),
+              non_neg_integer() | undefined) ->
         {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-execute(Client, QueryID, Types, Values, Consistency) ->
-    QueryParams = #query_params{values = #query_values{values = Values, types = Types}, consistency = Consistency},
+execute(Client, QueryID, Types, Values, Consistency, PageSize) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
+        values = #query_values{values = Values, types = Types}},
     Req = #execute{id = QueryID, params = QueryParams},
     case request(Client, Req, true) of
+        #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
+            {ok, Result#rows{initial_query = Req}};
         #result{result = Result} ->
             {ok, Result};
         #error{} = Error ->
             {error, Error}
     end.
+%%
+%% @see execute_async/6
+execute_async(Client, Query, Consistency) ->
+    execute_async(Client, Query, Consistency, undefined).
 
-execute_async(Client, QueryID, Types, Values, Consistency) ->
-    QueryParams = #query_params{values = #query_values{values = Values, types = Types}, consistency = Consistency},
+%% @see execute_async/6
+execute_async(Client, Query, Consistency, PageSize) ->
+    execute_async(Client, Query, [], [], Consistency, PageSize).
+
+%% @see execute_async/6
+execute_async(Client, QueryID, Types, Values, Consistency)->
+    execute_async(Client, QueryID, Types, Values, Consistency, undefined).
+
+
+%% @doc Asynchronously execute a prepared query using the specified consistency level.
+%% Use {@link seestar_result} module functions to work with the result.
+%% @see prepare/2.
+-spec execute_async(pid(),
+    query_id(),
+    [seestar_cqltypes:type()], [seestar_cqltypes:value()],
+    seestar:consistency(),
+    non_neg_integer() | undefined) ->
+    {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
+execute_async(Client, QueryID, Types, Values, Consistency, PageSize) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
+        values = #query_values{values = Values, types = Types}},
     Req = #execute{id = QueryID, params = QueryParams},
-    request(Client, Req, false).
+    if
+        is_number(PageSize)->
+            request_async(Client, Req, Req);
+        true ->
+            request_async(Client, Req, undefined)
+    end.
 
 %% @doc Synchronously execute a batch query
 %% Use {@link seestar_batch} module functions to create the request.
@@ -229,14 +297,41 @@ batch(Client, Req) ->
 batch_async(Client, Req) ->
     request(Client, Req, false).
 
+next_page(Client, #rows{initial_query = Req0, metadata = #metadata{paging_state = PagingState}}) ->
+    Req = next_page_request(Req0, PagingState),
+    case request(Client, Req, true) of
+        #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
+            {ok, Result#rows{initial_query = Req}};
+        #result{result = Result} ->
+            {ok, Result};
+        #error{} = Error ->
+            {error, Error}
+    end.
+
+next_page_async(Client, #rows{initial_query = Req0, metadata = #metadata{paging_state = PagingState}}) ->
+    Req = next_page_request(Req0, PagingState),
+    request_async(Client, Req, Req).
+
+next_page_request(#'query'{} = Req0, PagingState) ->
+    QueryParams = Req0#'query'.params#query_params{paging_state = PagingState},
+    Req0#query{params = QueryParams};
+
+next_page_request(#execute{} = Req0, PagingState) ->
+    QueryParams = Req0#execute.params#query_params{paging_state = PagingState},
+    Req0#execute{params = QueryParams}.
+
 request(Client, Request, Sync) ->
     {ReqOp, ReqBody} = seestar_messages:encode(Request),
-    case gen_server:call(Client, {request, ReqOp, ReqBody, Sync}, infinity) of
+    case gen_server:call(Client, {request, ReqOp, ReqBody, Sync, undefined}, infinity) of
         {RespOp, RespBody} ->
             seestar_messages:decode(RespOp, RespBody);
         Ref ->
             Ref
     end.
+
+request_async(Client, Request, ExtraData) ->
+    {ReqOp, ReqBody} = seestar_messages:encode(Request),
+    gen_server:call(Client, {request, ReqOp, ReqBody, false, ExtraData}, infinity).
 
 %% -------------------------------------------------------------------------
 %% gen_server callback functions
@@ -260,16 +355,16 @@ terminate(_Reason, _St) ->
     ok.
 
 %% @private
-handle_call({request, Op, Body, Sync}, From, #st{free_ids = []} = St) ->
-    Req = #req{op = Op, body = Body, from = From, sync = Sync},
+handle_call({request, Op, Body, Sync, Meta}, From, #st{free_ids = []} = St) ->
+    Req = #req{op = Op, body = Body, from = From, sync = Sync, meta = Meta},
     {noreply, St#st{backlog = queue:in(Req, St#st.backlog)}};
 
-handle_call({request, Op, Body, Sync}, {_Pid, Ref} = From, St) ->
+handle_call({request, Op, Body, Sync, Meta}, {_Pid, Ref} = From, St) ->
     case Sync of
         true  -> ok;
         false -> gen_server:reply(From, Ref)
     end,
-    case send_request(#req{op = Op, body = Body, from = From, sync = Sync}, St) of
+    case send_request(#req{op = Op, body = Body, from = From, sync = Sync, meta = Meta}, St) of
         {ok, St1}       -> {noreply, St1};
         {error, Reason} -> {stop, {socket_error, Reason}, St}
     end;
@@ -277,12 +372,12 @@ handle_call({request, Op, Body, Sync}, {_Pid, Ref} = From, St) ->
 handle_call(Request, _From, St) ->
     {stop, {unexpected_call, Request}, St}.
 
-send_request(#req{op = Op, body = Body, from = From, sync = Sync}, St) ->
+send_request(#req{op = Op, body = Body, from = From, sync = Sync, meta = Meta}, St) ->
     ID = hd(St#st.free_ids),
     Frame = seestar_frame:new(ID, [], Op, Body),
     case gen_tcp:send(St#st.sock, seestar_frame:encode(Frame)) of
         ok ->
-            ets:insert(St#st.reqs, {ID, From, Sync}),
+            ets:insert(St#st.reqs, {ID, From, Sync, Meta}),
             {ok, St#st{free_ids = tl(St#st.free_ids)}};
         {error, _Reason} = Error ->
             Error
@@ -324,19 +419,21 @@ handle_event(_Frame, St) ->
 
 handle_response(Frame, St) ->
     ID = seestar_frame:id(Frame),
-    [{ID, From, Sync}] = ets:lookup(St#st.reqs, ID),
+    [{ID, From, Sync, Meta}] = ets:lookup(St#st.reqs, ID),
     ets:delete(St#st.reqs, ID),
     Op = seestar_frame:opcode(Frame),
     Body = seestar_frame:body(Frame),
     case Sync of
         true  -> gen_server:reply(From, {Op, Body});
-        false -> reply_async(From, Op, Body)
+        false -> reply_async(From, Op, Body, Meta)
     end,
     St#st{free_ids = [ID|St#st.free_ids]}.
 
-reply_async({Pid, Ref}, Op, Body) ->
+reply_async({Pid, Ref}, Op, Body, Meta) ->
     F = fun() ->
             case seestar_messages:decode(Op, Body) of
+                #result{result = #rows{} = Result} ->
+                    {ok, Result#rows{initial_query = Meta}};
                 #result{result = Result} ->
                     {ok, Result};
                 #error{} = Error ->

@@ -89,7 +89,7 @@ query_id() = binary()
 
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-2">batch/2</a></td><td>Synchronously execute a batch query
-Use <a href="seestar_batch.md"><code>seestar_batch</code></a> module functions to create the request.</td></tr><tr><td valign="top"><a href="#batch_async-2">batch_async/2</a></td><td></td></tr><tr><td valign="top"><a href="#execute-5">execute/5</a></td><td>Synchronously execute a prepared query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#execute_async-5">execute_async/5</a></td><td></td></tr><tr><td valign="top"><a href="#perform-3">perform/3</a></td><td></td></tr><tr><td valign="top"><a href="#perform-4">perform/4</a></td><td>Synchoronously perform a CQL query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#perform_async-3">perform_async/3</a></td><td></td></tr><tr><td valign="top"><a href="#prepare-2">prepare/2</a></td><td>Prepare a query for later execution.</td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Equivalent to <a href="#start_link-3"><tt>start_link(Host, Post, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>Equivalent to <a href="#start_link-4"><tt>start_link(Host, Post, ClientOptions, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td></td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the client.</td></tr></table>
+Use <a href="seestar_batch.md"><code>seestar_batch</code></a> module functions to create the request.</td></tr><tr><td valign="top"><a href="#batch_async-2">batch_async/2</a></td><td></td></tr><tr><td valign="top"><a href="#execute-3">execute/3</a></td><td></td></tr><tr><td valign="top"><a href="#execute-4">execute/4</a></td><td></td></tr><tr><td valign="top"><a href="#execute-5">execute/5</a></td><td></td></tr><tr><td valign="top"><a href="#execute-6">execute/6</a></td><td>Synchronously execute a prepared query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#execute_async-3">execute_async/3</a></td><td></td></tr><tr><td valign="top"><a href="#execute_async-4">execute_async/4</a></td><td></td></tr><tr><td valign="top"><a href="#execute_async-5">execute_async/5</a></td><td></td></tr><tr><td valign="top"><a href="#execute_async-6">execute_async/6</a></td><td>Asynchronously execute a prepared query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#next_page-2">next_page/2</a></td><td></td></tr><tr><td valign="top"><a href="#next_page_async-2">next_page_async/2</a></td><td></td></tr><tr><td valign="top"><a href="#perform-3">perform/3</a></td><td></td></tr><tr><td valign="top"><a href="#perform-4">perform/4</a></td><td></td></tr><tr><td valign="top"><a href="#perform-5">perform/5</a></td><td>Synchoronously perform a CQL query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#perform_async-3">perform_async/3</a></td><td></td></tr><tr><td valign="top"><a href="#perform_async-4">perform_async/4</a></td><td></td></tr><tr><td valign="top"><a href="#perform_async-5">perform_async/5</a></td><td>Asynchronously perform a CQL query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#prepare-2">prepare/2</a></td><td>Prepare a query for later execution.</td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Equivalent to <a href="#start_link-3"><tt>start_link(Host, Post, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>Equivalent to <a href="#start_link-4"><tt>start_link(Host, Post, ClientOptions, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td></td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the client.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -115,13 +115,34 @@ Use [`seestar_batch`](seestar_batch.md) module functions to create the request.
 `batch_async(Client, Req) -> any()`
 
 
+<a name="execute-3"></a>
+
+### execute/3 ###
+
+`execute(Client, Query, Consistency) -> any()`
+
+__See also:__ [execute/6](#execute-6).
+<a name="execute-4"></a>
+
+### execute/4 ###
+
+`execute(Client, Query, Consistency, PageSize) -> any()`
+
+__See also:__ [execute/6](#execute-6).
 <a name="execute-5"></a>
 
 ### execute/5 ###
 
+`execute(Client, QueryID, Types, Values, Consistency) -> any()`
+
+__See also:__ [execute/6](#execute-6).
+<a name="execute-6"></a>
+
+### execute/6 ###
+
 
 <pre><code>
-execute(Client::pid(), QueryID::<a href="#type-query_id">query_id()</a>, Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
+execute(Client::pid(), QueryID::<a href="#type-query_id">query_id()</a>, Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>, PageSize::non_neg_integer() | undefined) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
 </code></pre>
 <br />
 
@@ -129,33 +150,74 @@ Synchronously execute a prepared query using the specified consistency level.
 Use [`seestar_result`](seestar_result.md) module functions to work with the result.
 
 __See also:__ [perform/3](#perform-3), [prepare/2](#prepare-2).
+<a name="execute_async-3"></a>
+
+### execute_async/3 ###
+
+`execute_async(Client, Query, Consistency) -> any()`
+
+__See also:__ [execute_async/6](#execute_async-6).
+<a name="execute_async-4"></a>
+
+### execute_async/4 ###
+
+`execute_async(Client, Query, Consistency, PageSize) -> any()`
+
+__See also:__ [execute_async/6](#execute_async-6).
 <a name="execute_async-5"></a>
 
 ### execute_async/5 ###
 
 `execute_async(Client, QueryID, Types, Values, Consistency) -> any()`
 
+__See also:__ [execute_async/6](#execute_async-6).
+<a name="execute_async-6"></a>
+
+### execute_async/6 ###
+
+
+<pre><code>
+execute_async(Client::pid(), QueryID::<a href="#type-query_id">query_id()</a>, Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>, PageSize::non_neg_integer() | undefined) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
+</code></pre>
+<br />
+
+Asynchronously execute a prepared query using the specified consistency level.
+Use [`seestar_result`](seestar_result.md) module functions to work with the result.
+
+__See also:__ [prepare/2](#prepare-2).
+<a name="next_page-2"></a>
+
+### next_page/2 ###
+
+`next_page(Client, Rows) -> any()`
+
+
+<a name="next_page_async-2"></a>
+
+### next_page_async/2 ###
+
+`next_page_async(Client, Rows) -> any()`
+
 
 <a name="perform-3"></a>
 
 ### perform/3 ###
 
+`perform(Client, Query, Consistency) -> any()`
 
-<pre><code>
-perform(Client::pid(), Query::<a href="#type-query">query()</a>, Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
-</code></pre>
-<br />
-
-
+__See also:__ [perform/5](#perform-5).
 <a name="perform-4"></a>
 
 ### perform/4 ###
 
+`perform(Client, Query, Consistency, Values) -> any()`
 
-<pre><code>
-perform(Client::pid(), Query::<a href="#type-query">query()</a>, Values::list(), Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>) -&gt; {ok, Result::<a href="seestar_result.md#type-result">seestar_result:result()</a>} | {error, Error::<a href="seestar_error.md#type-error">seestar_error:error()</a>}
-</code></pre>
-<br />
+__See also:__ [perform/5](#perform-5).
+<a name="perform-5"></a>
+
+### perform/5 ###
+
+`perform(Client, Query, Consistency, Values, PageSize) -> any()`
 
 Synchoronously perform a CQL query using the specified consistency level.
 Returns a result of an appropriate type (void, rows, set_keyspace, schema_change).
@@ -164,13 +226,27 @@ Use [`seestar_result`](seestar_result.md) module functions to work with the resu
 
 ### perform_async/3 ###
 
+`perform_async(Client, Query, Consistency) -> any()`
+
+__See also:__ [perform_async/5](#perform_async-5).
+<a name="perform_async-4"></a>
+
+### perform_async/4 ###
+
+`perform_async(Client, Query, Consistency, Values) -> any()`
+
+__See also:__ [perform_async/5](#perform_async-5).
+<a name="perform_async-5"></a>
+
+### perform_async/5 ###
+
 
 <pre><code>
-perform_async(Client::pid(), Query::<a href="#type-query">query()</a>, Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>) -&gt; ok
+perform_async(Client::pid(), Query::<a href="#type-query">query()</a>, Consistency::<a href="seestar.md#type-consistency">seestar:consistency()</a>, Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>], PageSize::non_neg_integer()) -&gt; ok
 </code></pre>
 <br />
 
-
+Asynchronously perform a CQL query using the specified consistency level.
 <a name="prepare-2"></a>
 
 ### prepare/2 ###
