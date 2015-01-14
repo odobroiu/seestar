@@ -18,13 +18,14 @@
 
 -include("seestar_messages.hrl").
 -include("builtin_types.hrl").
+-include("seestar.hrl").
 %% API exports.
 -export([start_link/2, start_link/3, start_link/4, stop/1]).
 -export([perform/3, perform/4, perform/5]).
 -export([perform_async/3, perform_async/4, perform_async/5]).
 -export([prepare/2]).
--export([execute/3, execute/4, execute/5, execute/6]).
--export([execute_async/3, execute_async/4, execute_async/5, execute_async/6]).
+-export([execute/3, execute/4, execute/5]).
+-export([execute_async/3, execute_async/4, execute_async/5]).
 -export([next_page/2, next_page_async/2]).
 -export([batch/2, batch_async/2]).
 
@@ -41,7 +42,6 @@
 -type connect_option() :: gen_tcp:connect_option() | {connect_timeout, timeout()}.
 
 -type 'query'() :: binary() | string().
--type query_id() :: binary().
 
 -define(b2l(Term), case is_binary(Term) of true -> binary_to_list(Term); false -> Term end).
 -define(l2b(Term), case is_list(Term) of true -> list_to_binary(Term); false -> Term end).
@@ -115,11 +115,11 @@ authenticate(Pid, Options) ->
         #authenticate{} when Authentication =:= undefined ->
             false;
         #authenticate{} ->
-            {AuthModule, Credentials} = Authentication,
+            {AuthModule, AuthModuleParams} = Authentication,
             SendFunction =  fun(#auth_response{} = Request) ->
                                 request(Pid, Request, true)
                             end,
-            AuthModule:perform_auth(SendFunction, Credentials)
+            AuthModule:perform_auth(SendFunction, AuthModuleParams)
     end.
 
 set_keyspace(Pid, Options) ->
@@ -164,67 +164,54 @@ perform(Client, Query, Consistency, PageSize) ->
 %% Returns a result of an appropriate type (void, rows, set_keyspace, schema_change).
 %% Use {@link seestar_result} module functions to work with the result.
 perform(Client, Query, Consistency, Values, PageSize) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
-        values = #query_values{values = Values}},
-    Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
-    case request(Client, Req, true) of
-        #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
-            {ok, Result#rows{initial_query = Req}};
-        #result{result = Result} ->
-            {ok, Result};
-        #error{} = Error ->
-            {error, Error}
-    end.
+    Req = query_record(Query, Values, Consistency, PageSize),
+    wrap_response(Req, request(Client, Req, true)).
 
 %% @see perform_async/5
+-spec perform_async(pid(), 'query'(), seestar:consistency()) -> any().
 perform_async(Client, Query, Consistency) ->
     perform_async(Client, Query, Consistency, []).
 
 %% @see perform_async/5
+-spec perform_async(pid(), 'query'(), seestar:consistency(), [seestar_cqltypes:value()] | non_neg_integer()) -> any().
 perform_async(Client, Query, Consistency, Values) when is_list(Values) ->
     perform_async(Client, Query, Consistency, Values, undefined);
 perform_async(Client, Query, Consistency, PageSize) ->
     perform_async(Client, Query, Consistency, [], PageSize).
 
-%% TODO doc
 %% @doc Asynchronously perform a CQL query using the specified consistency level.
--spec perform_async(pid(), 'query'(), seestar:consistency(), [seestar_cqltypes:value()], non_neg_integer()) -> ok.
+-spec perform_async(pid(), 'query'(), seestar:consistency(), [seestar_cqltypes:value()], undefined | non_neg_integer())
+        -> any().
 perform_async(Client, Query, Consistency, Values, PageSize) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
-        values = #query_values{values = Values}},
-    Req = #'query'{'query' = ?l2b(Query), params = QueryParams},
+    Req = query_record(Query, Values, Consistency, PageSize),
     if
         is_number(PageSize)->
-            request_async(Client, Req, Req);
+            request(Client, Req, undefined, Req, false);
         true ->
-            request_async(Client, Req, undefined)
+            request(Client, Req, false)
     end.
 
 %% @doc Prepare a query for later execution. The response will contain the prepared
-%% query id and column metadata for all the variables (if any).
+%% query that you will need to pass to the execute methods
 %% @see execute/3.
 %% @see execute/4.
 -spec prepare(pid(), 'query'()) ->
     {ok, Result :: seestar_result:prepared_result()} | {error, Error :: seestar_error:error()}.
 prepare(Client, Query) ->
-    case request(Client, #prepare{'query' = ?l2b(Query)}, true) of
-        #result{result = Result} ->
-            {ok, Result};
-        #error{} = Error ->
-            {error, Error}
-    end.
+    Req = #prepare{'query' = ?l2b(Query)},
+    wrap_response(Req, request(Client, Req, true)).
 
-%% @see execute/6
+%% @see execute/5
 execute(Client, Query, Consistency) ->
     execute(Client, Query, Consistency, undefined).
 
-%% @see execute/6
-execute(Client, Query, Consistency, PageSize) ->
-    execute(Client, Query, [], [], Consistency, PageSize).
+%% @see execute/5
+execute(Client, Query, Consistency, PageSize) when is_atom(Consistency) ->
+    execute(Client, Query, [], Consistency, PageSize);
 
-%% @see execute/6
-execute(Client, QueryID, Types, Values, Consistency)->
-    execute(Client, QueryID, Types, Values, Consistency, undefined).
+%% @see execute/5
+execute(Client, QueryID, Values, Consistency)->
+    execute(Client, QueryID, Values, Consistency, undefined).
 
 
 %% @doc Synchronously execute a prepared query using the specified consistency level.
@@ -232,114 +219,65 @@ execute(Client, QueryID, Types, Values, Consistency)->
 %% @see prepare/2.
 %% @see perform/3.
 -spec execute(pid(),
-              #prepared_query{},
-              [seestar_cqltypes:type()], [seestar_cqltypes:value()],
+              seestar_result:prepared_query(),
+              [seestar_cqltypes:value()],
               seestar:consistency(),
               non_neg_integer() | undefined) ->
         {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-execute(Client, #prepared_query{id = QueryID, cached_result_meta = CachedMeta}, Types, Values, Consistency, PageSize) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize, cached_result_meta = CachedMeta,
-        values = #query_values{values = Values, types = Types}},
-    Req = #execute{id = QueryID, params = QueryParams},
-    case request(Client, Req, CachedMeta, true) of
-        #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
-            {ok, Result#rows{initial_query = Req}};
-        #result{result = Result} ->
-            {ok, Result};
-        #error{} = Error ->
-            {error, Error}
-    end.
+execute(Client, #prepared_query{id = QueryID, request_types = Types, cached_result_meta = ResultMeta}, Values, Consistency, PageSize) ->
+    Req = execute_record(QueryID, Consistency, Values, Types, PageSize, ResultMeta),
+    wrap_response(Req, request(Client, Req, undefined, ResultMeta, true)).
+
 %%
-%% @see execute_async/6
+%% @see execute_async/5
 execute_async(Client, Query, Consistency) ->
     execute_async(Client, Query, Consistency, undefined).
 
-%% @see execute_async/6
-execute_async(Client, Query, Consistency, PageSize) ->
-    execute_async(Client, Query, [], [], Consistency, PageSize).
-
-%% @see execute_async/6
-execute_async(Client, QueryID, Types, Values, Consistency)->
-    execute_async(Client, QueryID, Types, Values, Consistency, undefined).
+%% @see execute_async/5
+execute_async(Client, Query, Consistency, PageSize) when is_atom(Consistency)->
+    execute_async(Client, Query, [], Consistency, PageSize);
+%% @see execute_async/5
+execute_async(Client, QueryID, Values, Consistency)->
+    execute_async(Client, QueryID, Values, Consistency, undefined).
 
 
 %% @doc Asynchronously execute a prepared query using the specified consistency level.
 %% Use {@link seestar_result} module functions to work with the result.
 %% @see prepare/2.
 -spec execute_async(pid(),
-    query_id(),
-    [seestar_cqltypes:type()], [seestar_cqltypes:value()],
+    seestar_result:prepared_query(),
+    [seestar_cqltypes:value()],
     seestar:consistency(),
     non_neg_integer() | undefined) ->
     {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-execute_async(Client, #prepared_query{id = QueryID, cached_result_meta = CachedResultMeta}, Types, Values, Consistency, PageSize) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize, cached_result_meta = CachedResultMeta,
-        values = #query_values{values = Values, types = Types}},
-    Req = #execute{id = QueryID, params = QueryParams},
+execute_async(Client, #prepared_query{id = QueryID, cached_result_meta = CachedResultMeta, request_types = Types}, Values, Consistency, PageSize) ->
+    Req = execute_record(QueryID, Consistency, Values, Types, PageSize, CachedResultMeta),
     if
         is_number(PageSize)->
-            request_async(Client, Req, Req, CachedResultMeta);
+            request(Client, Req, CachedResultMeta, Req, false);
         true ->
-            request_async(Client, Req, undefined, CachedResultMeta)
+            request(Client, Req, undefiend, Req, false)
     end.
 
 %% @doc Synchronously execute a batch query
 %% Use {@link seestar_batch} module functions to create the request.
--spec batch(pid(), #batch{})
-        -> {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
 batch(Client, Req) ->
-    case request(Client, Req, true) of
-        #result{result = Result} ->
-            {ok, Result};
-        #error{} = Error ->
-            {error, Error}
-    end.
+    wrap_response(Req, request(Client, Req, true)).
 
+%% @doc Asynchronously execute a batch query
+%% Use {@link seestar_batch} module functions to create the request.
 batch_async(Client, Req) ->
     request(Client, Req, false).
 
+%% @doc Synchronously returns the next page for a previous paginated result
 next_page(Client, #rows{initial_query = Req0, metadata = #metadata{paging_state = PagingState}}) ->
-    {Req, CachedData} = next_page_request(Req0, PagingState),
-    case request(Client, Req, CachedData, true) of
-        #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
-            {ok, Result#rows{initial_query = Req}};
-        #result{result = Result} ->
-            {ok, Result};
-        #error{} = Error ->
-            {error, Error}
-    end.
+    {Req, CachedDecodeData} = next_page_request(Req0, PagingState),
+    wrap_response(Req, request(Client, Req, undefined, CachedDecodeData, true)).
 
+%% @doc Asynchronously returns the next page for a previous paginated result
 next_page_async(Client, #rows{initial_query = Req0, metadata = #metadata{paging_state = PagingState}}) ->
-    {Req, CachedData} = next_page_request(Req0, PagingState),
-    request_async(Client, Req, Req, CachedData).
-
-next_page_request(#'query'{} = Req0, PagingState) ->
-    QueryParams = Req0#'query'.params#query_params{paging_state = PagingState},
-    {Req0#query{params = QueryParams}, undefined};
-
-next_page_request(#execute{} = Req0, PagingState) ->
-    QueryParams = Req0#execute.params#query_params{paging_state = PagingState},
-    {Req0#execute{params = QueryParams}, QueryParams#query_params.cached_result_meta}.
-
-request(Client, Request, Sync) ->
-    request(Client, Request, undefined,  Sync).
-
-request(Client, Request, CachedDecodeData, Sync) ->
-    {ReqOp, ReqBody} = seestar_messages:encode(Request),
-    case gen_server:call(Client, {request, ReqOp, ReqBody, Sync, undefined, CachedDecodeData}, infinity) of
-        {RespOp, RespBody} ->
-            seestar_messages:decode(RespOp, RespBody, CachedDecodeData);
-        Ref ->
-            Ref
-    end.
-
-request_async(Client, Request, ResultData) ->
-    request_async(Client, Request, ResultData, undefined).
-
-request_async(Client, Request, ResultData, DecodeData) ->
-    {ReqOp, ReqBody} = seestar_messages:encode(Request),
-    gen_server:call(Client, {request, ReqOp, ReqBody, false, ResultData, DecodeData}, infinity).
-
+    {Req, CachedDecodeData} = next_page_request(Req0, PagingState),
+    request(Client, Req, CachedDecodeData, Req, false).
 %% -------------------------------------------------------------------------
 %% gen_server callback functions
 %% -------------------------------------------------------------------------
@@ -413,6 +351,60 @@ handle_info({tcp_error, Sock, Reason}, #st{sock = Sock} = St) ->
 
 handle_info(Info, St) ->
     {stop, {unexpected_info, Info}, St}.
+
+%% -------------------------------------------------------------------------
+%% Internal
+%% -------------------------------------------------------------------------
+
+next_page_request(#'query'{} = Req0, PagingState) ->
+    QueryParams = Req0#'query'.params#query_params{paging_state = PagingState},
+    {Req0#query{params = QueryParams}, undefined};
+
+next_page_request(#execute{} = Req0, PagingState) ->
+    %% For paging execute queries, since we use skip_meta, we need to also return the
+    %% ResultMetadata so that we can use it when decoding.
+    QueryParams = Req0#execute.params#query_params{paging_state = PagingState},
+    {Req0#execute{params = QueryParams}, QueryParams#query_params.cached_result_meta}.
+
+query_record(Query, Values, Consistency, PageSize) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
+        values = #query_values{values = Values}},
+    #'query'{'query' = ?l2b(Query), params = QueryParams}.
+
+execute_record(QueryID, Consistency, Values, Types, PageSize, ResultMeta) ->
+    QueryParams = #query_params{consistency = Consistency, page_size = PageSize, cached_result_meta = ResultMeta,
+        values = #query_values{values = Values, types = Types}},
+    #execute{id = QueryID, params = QueryParams}.
+
+-spec request(pid(), seestar_messages:outgoing(), boolean()) -> any() | seestar_messages:incoming().
+request(Client, Request, Sync) ->
+    request(Client, Request, undefined, undefined, Sync).
+
+%% @private
+%% @doc Sends the request to the process handling the connection. The 2 new parameters are
+%% CachedDecodeData -> will be passed to the decode function. This is useful when a part
+%% of the response from cassandra is known( eg skip_meta), and that part is needed for the decoding
+%% CachedResultData -> will end up being passed to reply_async. This is currently used for keeping
+%% the initial query and returning it to the caller in case of a paginated resultSet
+-spec request(pid(), seestar_messages:outgoing(), any(), any(), boolean()) -> any() | seestar_messages:incoming().
+request(Client, Request, CachedDecodeData, CachedResultData, Sync) ->
+    {ReqOp, ReqBody} = seestar_messages:encode(Request),
+    case gen_server:call(Client, {request, ReqOp, ReqBody, Sync, CachedResultData, CachedDecodeData}, infinity) of
+        {RespOp, RespBody} ->
+            seestar_messages:decode(RespOp, RespBody, CachedDecodeData);
+        Ref ->
+            Ref
+    end.
+
+wrap_response(Req, Respone) ->
+    case Respone of
+        #result{result = #rows{metadata = #metadata{has_more_results = true}} = Result} ->
+            {ok, Result#rows{initial_query = Req}};
+        #result{result = Result} ->
+            {ok, Result};
+        #error{} = Error ->
+            {error, Error}
+    end.
 
 process_frames([Frame|Frames], St) ->
     process_frames(Frames,

@@ -14,21 +14,23 @@
 
 -module(seestar_result).
 
+-include("seestar.hrl").
 -include("seestar_messages.hrl").
 
--export([type/1, rows/1, names/1, types/1, type/2, keyspace/1, table/1, query_id/1,
+-export([type/1, rows/1, names/1, types/1, type/2, keyspace/1, table/1, prepared_query/1,
     change/1, has_more_rows/1]).
 
 -type rows_result() :: #rows{}.
 -type set_keyspace_result() :: #set_keyspace{}.
 -type prepared_result() :: #prepared{}.
 -type schema_change_result() :: #schema_change{}.
+-type prepared_query() :: #prepared_query{}.
 -opaque result() :: void
                 | rows_result()
                 | set_keyspace_result()
                 | prepared_result()
                 | schema_change_result().
--export_type([result/0, prepared_result/0]).
+-export_type([result/0, prepared_result/0, prepared_query/0]).
 
 -type type() :: void | rows | set_keyspace | prepared | schema_change.
 -type change() :: created | updated | dropped.
@@ -54,9 +56,9 @@ rows(#rows{rows = Rows}) ->
     Rows.
 
 -spec names(Result :: rows_result() | prepared_result()) -> [binary()].
-names(#rows{metadata = Columns}) ->
+names(#rows{metadata = #metadata{columns = Columns}}) ->
     [ C#column.name || C <- Columns ];
-names(#prepared{request_metadata = Columns}) ->
+names(#prepared{request_metadata = #metadata{columns = Columns}}) ->
     [ C#column.name || C <- Columns ].
 
 -spec types(Result :: rows_result() | prepared_result()) -> [seestar_cqltypes:type()].
@@ -66,9 +68,9 @@ types(#prepared{request_metadata = #metadata{columns = Columns}}) ->
     [ C#column.type || C <- Columns ].
 
 -spec type(Result :: rows_result() | prepared_result(), Name :: binary()) -> seestar_cqltypes:type().
-type(#rows{metadata = Columns}, Name) ->
+type(#rows{metadata = #metadata{columns = Columns}}, Name) ->
     hd([ C#column.type || C <- Columns, C#column.name =:= Name ]);
-type(#prepared{request_metadata = Columns}, Name) ->
+type(#prepared{request_metadata = #metadata{columns = Columns}}, Name) ->
     hd([ C#column.type || C <- Columns, C#column.name =:= Name ]).
 
 -spec keyspace(Result :: set_keyspace_result() | schema_change_result()) -> binary().
@@ -81,14 +83,19 @@ keyspace(#schema_change{keyspace = Keyspace}) ->
 table(#schema_change{table = Table}) ->
     Table.
 
--spec query_id(Result :: prepared_result()) -> binary().
-query_id(#prepared{id = ID, result_metadata = ResultMetadata}) ->
-    #prepared_query{id = ID, cached_result_meta = ResultMetadata}.
+%% @doc Returns a prepared query from the result. The returned query can be passed to
+%% the {@link seestar_session:execute} or {@link seestar_session:execute_asyn} functions,
+%% or can be used a part of a batch query using the {@link seestar_batch} module.
+-spec prepared_query(Result :: prepared_result()) -> prepared_query().
+prepared_query(#prepared{id = ID, result_metadata = ResultMetadata} = Result) ->
+    #prepared_query{id = ID, cached_result_meta = ResultMetadata, request_types = types(Result)}.
 
 -spec change(Result :: schema_change_result()) -> change().
 change(#schema_change{change = Change}) ->
     Change.
 
--spec has_more_rows(result()) -> boolean().
+%% @doc Returns true if the current result is paginated and not all records have been
+%% retrieved so far
+-spec has_more_rows(Result :: rows_result()) -> boolean().
 has_more_rows(#rows{metadata = #metadata{has_more_results = HasMoreRows}}) ->
     HasMoreRows.

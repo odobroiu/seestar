@@ -41,7 +41,7 @@ batch_request() = #batch{}
 
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch_request-3">batch_request/3</a></td><td>Return a batch request that can be sent to cassandra
-Use <a href="seestar_session.md"><code>seestar_session</code></a> module to send the request.</td></tr><tr><td valign="top"><a href="#normal_query-2">normal_query/2</a></td><td>Return a normal query that can be added to batch request.</td></tr><tr><td valign="top"><a href="#prepared_query-3">prepared_query/3</a></td><td>Return a prepared query that can be added to batch request.</td></tr></table>
+Use <a href="seestar_session.md"><code>seestar_session</code></a> module to send the request.</td></tr><tr><td valign="top"><a href="#normal_query-2">normal_query/2</a></td><td>Return a normal query that can be added to batch request.</td></tr><tr><td valign="top"><a href="#prepared_query-2">prepared_query/2</a></td><td>Return a prepared query that can be added to batch request.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -75,13 +75,13 @@ normal_query(Query::binary(), Values::[<a href="seestar_cqltypes.md#type-value">
 Return a normal query that can be added to batch request
 
 __See also:__ [batch_request/3](#batch_request-3).
-<a name="prepared_query-3"></a>
+<a name="prepared_query-2"></a>
 
-### prepared_query/3 ###
+### prepared_query/2 ###
 
 
 <pre><code>
-prepared_query(Prepared_query::binary(), Types::[<a href="seestar_cqltypes.md#type-type">seestar_cqltypes:type()</a>], Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>]) -&gt; <a href="#type-batch_query">batch_query()</a>
+prepared_query(Prepared_query::<a href="seestar_result.md#type-prepared_query">seestar_result:prepared_query()</a>, Values::[<a href="seestar_cqltypes.md#type-value">seestar_cqltypes:value()</a>]) -&gt; <a href="#type-batch_query">batch_query()</a>
 </code></pre>
 <br />
 

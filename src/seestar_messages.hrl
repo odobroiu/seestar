@@ -34,18 +34,17 @@
 %% event.
 -define(EVENT, 16#0C).
 
-%% Used in other records TODO -> Move
+%% Used in requests and responses
 -record(column,
-{keyspace :: binary(),
-    table :: binary(),
-    name :: binary(),
-    type :: seestar_cqltypes:type()}).
+        {keyspace :: binary(),
+        table :: binary(),
+        name :: binary(),
+        type :: seestar_cqltypes:type()}).
 
 -record(metadata,
-{has_more_results   = false     :: boolean(),
-    paging_state       = undefined :: binary(),
-    columns            = undefined :: [#column{}]
-}).
+        {has_more_results   = false     :: boolean(),
+         paging_state       = undefined :: undefined | binary(),
+         columns                        :: [#column{}]}).
 
 %% requests.
 -record(startup,
@@ -63,12 +62,12 @@
          values = []    :: [seestar_cqltypes:value()]}).
 
 -record(query_params,
-    {consistency        = one               :: atom(),
-     values             = #query_values{}   :: #query_values{},
-     cached_result_meta = undefined         :: #metadata{},
-     page_size          = undefined         :: undefined | byte(),
-     paging_state       = undefined         :: undefined | byte(),
-     serial_consistency = serial            :: serial | local_serial}).
+        {consistency        = one               :: atom(),
+         values             = #query_values{}   :: #query_values{},
+         cached_result_meta = undefined         :: undefined | #metadata{},
+         page_size          = undefined         :: undefined | non_neg_integer(),
+         paging_state       = undefined         :: undefined | binary(),
+         serial_consistency = serial            :: serial | local_serial}).
 
 -record('query',
         {'query' :: binary(),
@@ -148,9 +147,9 @@
 
 %% result and various result sub-types.
 -record(rows,
-        {metadata :: #metadata{},
+        {metadata :: metadata(),
          rows :: [[seestar_cqltypes:value()]],
-         initial_query = undefined :: #execute{} | #'query'{} %% used for fetching the next page
+         initial_query :: #execute{} | #'query'{} %% used for fetching the next page
         }).
 
 -record(set_keyspace,
@@ -190,9 +189,7 @@
                 | #status_change{}
                 | #schema_change{}}).
 
-%% TODO -> Move elsewhere
--record(prepared_query,
-        {
-         id :: binary(),
-         cached_result_meta :: #metadata{}
-        }).
+-type metadata() :: #metadata{}.
+-type column() :: #column{}.
+-export_type([metadata/0, column/0]).
+

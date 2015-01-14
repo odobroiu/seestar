@@ -37,6 +37,5 @@ where CASSANDRA_DIR is the path to the compiled Cassandra directory.
 <tr><td><a href="https://github.com/iamaleksey/seestar/blob/protocol_v2/doc/seestar_error.md" class="module">seestar_error</a></td></tr>
 <tr><td><a href="https://github.com/iamaleksey/seestar/blob/protocol_v2/doc/seestar_event.md" class="module">seestar_event</a></td></tr>
 <tr><td><a href="https://github.com/iamaleksey/seestar/blob/protocol_v2/doc/seestar_password_auth.md" class="module">seestar_password_auth</a></td></tr>
-<tr><td><a href="https://github.com/iamaleksey/seestar/blob/protocol_v2/doc/seestar_result.md" class="module">seestar_result</a></td></tr>
 <tr><td><a href="https://github.com/iamaleksey/seestar/blob/protocol_v2/doc/seestar_session.md" class="module">seestar_session</a></td></tr></table>
 

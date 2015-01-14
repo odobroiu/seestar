@@ -335,9 +335,11 @@ page_size(#query_params{page_size = PageSize}) when is_integer(PageSize) ->
 
 skip_meta(#query_params{cached_result_meta = undefined}) ->
     0;
-skip_meta(#query_params{cached_result_meta = #metadata{}}) ->
+skip_meta(#query_params{cached_result_meta = Metadata}) when is_record(Metadata, metadata) ->
     1.
 
+values(#query_values{values = []})->
+    {0, <<>>};
 values(#query_values{values = Values, types = Types}) when length(Types) == length(Values) ->
     Variables = << <<(seestar_cqltypes:encode_value_with_size(Type, Value))/binary>>
         || {Type, Value} <- lists:zip(Types, Values) >>,
@@ -345,7 +347,7 @@ values(#query_values{values = Values, types = Types}) when length(Types) == leng
     (seestar_types:encode_short(length(Values)))/binary ,
     Variables/binary>>};
 values(#query_values{values = Values, types = []}) when is_list(Values) ->
-    %% This happens in the case of the unprepared query. Types need to be guessed
+    %% This happens in the case of the unprepared query. Types need to be 'guessed'
     %% TODO -> Could be a little clearer on the whole process
     Variables = << <<(seestar_cqltypes:encode_value_with_size(Value))/binary>> || Value <- Values >>,
     {1, <<

@@ -91,7 +91,7 @@ test_native_types(Pid) ->
                inetcol, intcol, textcol, timestampcol, timeuuidcol, uuidcol, varcharcol, varintcol)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     {ok, Res1} = seestar_session:prepare(Pid, Qry1),
-    QryID = seestar_result:query_id(Res1),
+    PreparedQuery = seestar_result:prepared_query(Res1),
     Types = seestar_result:types(Res1),
     ?assertEqual([ascii, bigint, blob, boolean, decimal, double, float,
                   inet, int, varchar, timestamp, timeuuid, uuid, varchar, varint],
@@ -106,8 +106,8 @@ test_native_types(Pid) ->
             <<135,99,103,104,40,81,17,187,181,58,96,197,71,12,191,14>>,
             <<148,125,144,228,220,27,68,12,148,158,178,154,25,169,42,113>>,
             <<>>, 100000000000000000000000000],
-    {ok, _} = seestar_session:execute(Pid, QryID, Types, Row0, one),
-    {ok, _} = seestar_session:execute(Pid, QryID, Types, Row1, one),
+    {ok, _} = seestar_session:execute(Pid, PreparedQuery, Row0, one),
+    {ok, _} = seestar_session:execute(Pid, PreparedQuery, Row1, one),
     % test deserialization.
     Qry2 = "SELECT asciicol, bigintcol, blobcol, booleancol, decimalcol, doublecol, floatcol,
                    inetcol, intcol, textcol, timestampcol, timeuuidcol, uuidcol, varcharcol, varintcol
@@ -121,9 +121,8 @@ test_counter_type(Pid) ->
     {ok, _} = seestar_session:perform(Pid, Qry0, one),
     Qry1 = "UPDATE seestar.has_counter_type SET counter = counter + ? WHERE id = ?",
     {ok, Res1} = seestar_session:prepare(Pid, Qry1),
-    QryID = seestar_result:query_id(Res1),
-    Types = seestar_result:types(Res1),
-    [ {ok, _} = seestar_session:execute(Pid, QryID, Types, [C, 0], one) || C <- [ 1, -2, 3 ] ],
+    PreparedQuery = seestar_result:prepared_query(Res1),
+    [ {ok, _} = seestar_session:execute(Pid, PreparedQuery, [C, 0], one) || C <- [ 1, -2, 3 ] ],
     Qry2 = "SELECT id, counter FROM seestar.has_counter_type WHERE id = 0",
     {ok, Res2} = seestar_session:perform(Pid, Qry2, one),
     ?assertEqual([[0, 2]], seestar_result:rows(Res2)).
@@ -139,12 +138,11 @@ test_collection_types(Pid) ->
     {ok, _} = seestar_session:perform(Pid, Qry0, one),
     Qry1 = "INSERT INTO seestar.has_collection_types (id, mapcol, setcol, listcol) VALUES (?, ?, ?, ?)",
     {ok, Res1} = seestar_session:prepare(Pid, Qry1),
-    QryID = seestar_result:query_id(Res1),
-    Types = seestar_result:types(Res1),
+    PreparedQuery = seestar_result:prepared_query(Res1),
     Row0 = [0, null, null, null],
     Row1 = [1, dict:from_list([{<<"k1">>, <<"v1">>}]), sets:from_list([1]), [true]],
     Row2 = [2, dict:from_list([{<<"k1">>, <<"v1">>}, {<<"k2">>, <<"v2">>}]), sets:from_list([1,2]), [true, false]],
-    [ {ok, _} = seestar_session:execute(Pid, QryID, Types, R, one) || R <- [Row0, Row1, Row2] ],
+    [ {ok, _} = seestar_session:execute(Pid, PreparedQuery, R, one) || R <- [Row0, Row1, Row2] ],
     Qry2 = "SELECT id, mapcol, setcol, listcol FROM seestar.has_collection_types",
     {ok, Res2} = seestar_session:perform(Pid, Qry2, one),
     ?assertEqual([Row1, Row0, Row2], seestar_result:rows(Res2)).
@@ -173,9 +171,9 @@ result_paging_execute_sync(Pid) ->
 
     SelectQuery = "SELECT * FROM seestar_test_table",
     {ok, PreparedResult} = seestar_session:prepare(Pid, SelectQuery),
-    QueryID = seestar_result:query_id(PreparedResult),
+    PreparedQuery = seestar_result:prepared_query(PreparedResult),
 
-    {ok, PagedSelectResult} = seestar_session:execute(Pid, QueryID, one, 100),
+    {ok, PagedSelectResult} = seestar_session:execute(Pid, PreparedQuery, one, 100),
     NumberOfRows = count_rows(Pid, PagedSelectResult),
     ?assertEqual(2000, NumberOfRows).
 
@@ -184,7 +182,7 @@ result_paging_execute_async(Pid) ->
     %% Check if updated
     SelectQuery = "SELECT * FROM seestar_test_table",
     {ok, PreparedResult} = seestar_session:prepare(Pid, SelectQuery),
-    QueryID = seestar_result:query_id(PreparedResult),
+    QueryID = seestar_result:prepared_query(PreparedResult),
 
     Ref = seestar_session:execute_async(Pid, QueryID, one, 100),
     receive
@@ -203,7 +201,6 @@ perform_insert_update_delete(Pid) ->
 
     %% Check if row exists
     {ok, SelectResult} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table where id = ?", one, [1]),
-    ?assertEqual(2, length(seestar_result:types(SelectResult))),
     ?assertEqual([[1, <<"The quick brown fox">>]], seestar_result:rows(SelectResult)),
 
     %% Update row
@@ -226,8 +223,7 @@ batch_tests(Pid) ->
 
     InsertQuery = <<"INSERT INTO seestar_test_table(id, value) values (?, ?)">>,
     {ok, PreparedResult} = seestar_session:prepare(Pid, InsertQuery),
-    QueryID = seestar_result:query_id(PreparedResult),
-    Types = seestar_result:types(PreparedResult),
+    PreparedQuery = seestar_result:prepared_query(PreparedResult),
 
     NormalQueriesList = [
         seestar_batch:normal_query(<<"INSERT INTO seestar_test_table(id, value) values (?, ?)">>, [I, <<"The fox">>] )
@@ -235,7 +231,7 @@ batch_tests(Pid) ->
     ],
 
     PreparedQueriesList = [
-        seestar_batch:prepared_query(QueryID, Types, [I, <<"The fox">>])
+        seestar_batch:prepared_query(PreparedQuery, [I, <<"The fox">>])
         || I <- lists:seq(101,200)
     ],
 
@@ -252,11 +248,10 @@ multiple_inserts(Pid) ->
     %% Prepare Query
     Query = "INSERT INTO seestar_test_table(id, value) values (?, ?)",
     {ok, Res1} = seestar_session:prepare(Pid, Query),
-    QryID = seestar_result:query_id(Res1),
-    Types = seestar_result:types(Res1),
+    PreparedQuery = seestar_result:prepared_query(Res1),
 
     N = 10000,
-    [seestar_session:execute_async(Pid, QryID, Types, [ID, <<"The fox">>], one) || ID <- lists:seq(1, N)],
+    [seestar_session:execute_async(Pid, PreparedQuery, [ID, <<"The fox">>], one) || ID <- lists:seq(1, N)],
 
     wait_for_results(N).
 
@@ -276,10 +271,9 @@ insert_data_for_paging(Pid) ->
     {ok, _Res2} = seestar_session:perform(Pid, CreateTable, one),
     InsertQuery = <<"INSERT INTO seestar_test_table(id, value) values (?, ?)">>,
     {ok, PreparedResult} = seestar_session:prepare(Pid, InsertQuery),
-    QueryID = seestar_result:query_id(PreparedResult),
-    Types = seestar_result:types(PreparedResult),
+    QueryID = seestar_result:prepared_query(PreparedResult),
     PreparedQueriesList = [
-        seestar_batch:prepared_query(QueryID, Types, [I, <<"The fox">>])
+        seestar_batch:prepared_query(QueryID, [I, <<"The fox">>])
         || I <- lists:seq(1, 2000)
     ],
     Batch = seestar_batch:batch_request(logged, one, PreparedQueriesList),

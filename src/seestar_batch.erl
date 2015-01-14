@@ -1,8 +1,9 @@
 -module(seestar_batch).
 
 %% API
--export([prepared_query/3, normal_query/2, batch_request/3]).
+-export([prepared_query/2, normal_query/2, batch_request/3]).
 
+-include("seestar.hrl").
 -include("seestar_messages.hrl").
 
 -type batch_query() :: #batch_query{}.
@@ -11,8 +12,8 @@
 
 %% @doc Return a prepared query that can be added to batch request
 %% @see batch_request/3.
--spec prepared_query(binary(), list(seestar_cqltypes:type()), list(seestar_cqltypes:value())) -> batch_query().
-prepared_query(#prepared_query{id = ID, cached_result_meta = _CachedMeta}, Types, Values) ->
+-spec prepared_query(seestar_result:prepared_query(), [seestar_cqltypes:value()]) -> batch_query().
+prepared_query(#prepared_query{id = ID, request_types = Types}, Values) ->
     #batch_query{kind = prepared, string_or_id = ID, values = #query_values{values = Values, types = Types}}.
 
 %% @doc Return a normal query that can be added to batch request
