@@ -31,7 +31,7 @@ client_option() = {keyspace, string() | binary()} | {credentials, <a href="#type
 
 
 <pre><code>
-connect_option() = <a href="gen_tcp.md#type-connect_option">gen_tcp:connect_option()</a> | {connect_timeout, timeout()}
+connect_option() = <a href="gen_tcp.md#type-connect_option">gen_tcp:connect_option()</a> | {connect_timeout, timeout()} | {ssl, [<a href="ssl.md#type-connect_option">ssl:connect_option()</a>]}
 </code></pre>
 
 
@@ -78,7 +78,8 @@ query() = binary() | string()
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-2">batch/2</a></td><td>Synchronously execute a batch query
 Use <a href="seestar_batch.md"><code>seestar_batch</code></a> module functions to create the request.</td></tr><tr><td valign="top"><a href="#batch_async-2">batch_async/2</a></td><td>Asynchronously execute a batch query
-Use <a href="seestar_batch.md"><code>seestar_batch</code></a> module functions to create the request.</td></tr><tr><td valign="top"><a href="#execute-3">execute/3</a></td><td></td></tr><tr><td valign="top"><a href="#execute-4">execute/4</a></td><td></td></tr><tr><td valign="top"><a href="#execute-5">execute/5</a></td><td>Synchronously execute a prepared query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#execute_async-3">execute_async/3</a></td><td></td></tr><tr><td valign="top"><a href="#execute_async-4">execute_async/4</a></td><td></td></tr><tr><td valign="top"><a href="#execute_async-5">execute_async/5</a></td><td>Asynchronously execute a prepared query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#next_page-2">next_page/2</a></td><td>Synchronously returns the next page for a previous paginated result.</td></tr><tr><td valign="top"><a href="#next_page_async-2">next_page_async/2</a></td><td>Asynchronously returns the next page for a previous paginated result.</td></tr><tr><td valign="top"><a href="#perform-3">perform/3</a></td><td></td></tr><tr><td valign="top"><a href="#perform-4">perform/4</a></td><td></td></tr><tr><td valign="top"><a href="#perform-5">perform/5</a></td><td>Synchoronously perform a CQL query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#perform_async-3">perform_async/3</a></td><td></td></tr><tr><td valign="top"><a href="#perform_async-4">perform_async/4</a></td><td></td></tr><tr><td valign="top"><a href="#perform_async-5">perform_async/5</a></td><td>Asynchronously perform a CQL query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#prepare-2">prepare/2</a></td><td>Prepare a query for later execution.</td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Equivalent to <a href="#start_link-3"><tt>start_link(Host, Post, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>Equivalent to <a href="#start_link-4"><tt>start_link(Host, Post, ClientOptions, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td></td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the client.</td></tr></table>
+Use <a href="seestar_batch.md"><code>seestar_batch</code></a> module functions to create the request.</td></tr><tr><td valign="top"><a href="#execute-3">execute/3</a></td><td></td></tr><tr><td valign="top"><a href="#execute-4">execute/4</a></td><td></td></tr><tr><td valign="top"><a href="#execute-5">execute/5</a></td><td>Synchronously execute a prepared query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#execute_async-3">execute_async/3</a></td><td></td></tr><tr><td valign="top"><a href="#execute_async-4">execute_async/4</a></td><td></td></tr><tr><td valign="top"><a href="#execute_async-5">execute_async/5</a></td><td>Asynchronously execute a prepared query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#next_page-2">next_page/2</a></td><td>Synchronously returns the next page for a previous paginated result.</td></tr><tr><td valign="top"><a href="#next_page_async-2">next_page_async/2</a></td><td>Asynchronously returns the next page for a previous paginated result.</td></tr><tr><td valign="top"><a href="#perform-3">perform/3</a></td><td></td></tr><tr><td valign="top"><a href="#perform-4">perform/4</a></td><td></td></tr><tr><td valign="top"><a href="#perform-5">perform/5</a></td><td>Synchoronously perform a CQL query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#perform_async-3">perform_async/3</a></td><td></td></tr><tr><td valign="top"><a href="#perform_async-4">perform_async/4</a></td><td></td></tr><tr><td valign="top"><a href="#perform_async-5">perform_async/5</a></td><td>Asynchronously perform a CQL query using the specified consistency level.</td></tr><tr><td valign="top"><a href="#prepare-2">prepare/2</a></td><td>Prepare a query for later execution.</td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Equivalent to <a href="#start_link-3"><tt>start_link(Host, Post, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>Equivalent to <a href="#start_link-4"><tt>start_link(Host, Post, ClientOptions, [])</tt></a>.</td></tr><tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td>
+Starts a new connection to a cassandra node on Host:Port.</td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the client.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -269,11 +270,14 @@ Equivalent to [`start_link(Host, Post, ClientOptions, [])`](#start_link-4).
 
 
 <pre><code>
-start_link(Host::<a href="inet.md#type-hostname">inet:hostname()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, ClientOptions::[<a href="#type-client_option">client_option()</a>], ConnectOptions::[<a href="#type-connect_option">connect_option()</a>]) -&gt; any()
+start_link(Host::<a href="inet.md#type-hostname">inet:hostname()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, ClientOptions::[<a href="#type-client_option">client_option()</a>], ConnectOptions::[<a href="#type-connect_option">connect_option()</a>]) -&gt; {ok, pid()} | {error, any()}
 </code></pre>
 <br />
 
 
+Starts a new connection to a cassandra node on Host:Port.
+By default it will connect on plain tcp. If you want to connect using ssl, pass
+{ssl, [ssl_option()]} in the ConnectOptions
 <a name="stop-1"></a>
 
 ### stop/1 ###
