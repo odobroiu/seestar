@@ -1,6 +1,16 @@
 -module(seestar_ccm).
 
--export([create/0, create/1, remove/0, start/0, stop/0, update_config/1, configure_ssl/0]).
+-include_lib("eunit/include/eunit.hrl").
+
+-export([
+    create/0,
+    create/1,
+    start/0,
+    stop/0,
+    stop_node/1,
+    remove/0,
+    update_config/1,
+    configure_ssl/0]).
 
 create() ->
     create(1).
@@ -18,6 +28,9 @@ start() ->
 
 stop() ->
     cmd("stop").
+
+stop_node(Node) ->
+    cmd(io_lib:format("~s stop", [Node])).
 
 cmd(Cmd) ->
     os:cmd("ccm " ++ Cmd).

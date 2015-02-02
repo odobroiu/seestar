@@ -21,13 +21,9 @@
 -include("seestar.hrl").
 %% API exports.
 -export([start_link/2, start_link/3, start_link/4, stop/1]).
--export([perform/3, perform/4, perform/5]).
--export([perform_async/3, perform_async/4, perform_async/5]).
--export([prepare/2]).
--export([execute/3, execute/4, execute/5]).
--export([execute_async/3, execute_async/4, execute_async/5]).
+-export([prepare/2, prepare_async/2]).
+-export([execute/2, execute_async/2]).
 -export([next_page/2, next_page_async/2]).
--export([batch/2, batch_async/2]).
 
 %% gen_server exports.
 -export([init/1, terminate/2, handle_call/3, handle_cast/2, handle_info/2,
@@ -62,7 +58,8 @@
          buffer :: seestar_buffer:buffer(),
          free_ids :: [seestar_frame:stream_id()],
          backlog = queue:new() :: queue_t(),
-         reqs :: ets:tid()}).
+         reqs :: ets:tid(),
+         event_listener :: pid()}).
 
 %% -------------------------------------------------------------------------
 %% API
@@ -88,7 +85,7 @@ start_link(Host, Port, ClientOptions) ->
 -spec start_link(inet:hostname(), inet:port_number(), [client_option()], [connect_option()]) ->
     {ok, pid()} | {error, any()}.
 start_link(Host, Port, ClientOptions, ConnectOptions) ->
-     case gen_server:start_link(?MODULE, [Host, Port, ConnectOptions], []) of
+     case gen_server:start_link(?MODULE, [Host, Port, ClientOptions, ConnectOptions], []) of
         {ok, Pid} ->
             case setup(Pid, ClientOptions) of
                 ok    -> {ok, Pid};
@@ -134,7 +131,8 @@ set_keyspace(Pid, Options) ->
         undefined ->
             true;
         Keyspace ->
-            case perform(Pid, "USE " ++ ?b2l(Keyspace), one) of
+            UseKeyspaceStatement = seestar_statement:new("USE " ++ ?b2l(Keyspace), one),
+            case execute(Pid, UseKeyspaceStatement) of
                 {ok, _Result}    -> true;
                 {error, _Reason} -> false
             end
@@ -157,47 +155,6 @@ subscribe(Pid, Options) ->
 stop(Client) ->
     gen_server:cast(Client, stop).
 
-%% @see perform/5
-perform(Client, Query, Consistency) ->
-    perform(Client, Query, Consistency, []).
-
-%% @see perform/5
-perform(Client, Query, Consistency, Values) when is_list(Values) ->
-    perform(Client, Query, Consistency, Values, undefined);
-perform(Client, Query, Consistency, PageSize) ->
-    perform(Client, Query, Consistency, [], PageSize).
-
-%% @doc Synchoronously perform a CQL query using the specified consistency level.
-%% Returns a result of an appropriate type (void, rows, set_keyspace, schema_change).
-%% Use {@link seestar_result} module functions to work with the result.
-perform(Client, Query, Consistency, Values, PageSize) ->
-    Req = query_record(Query, Values, Consistency, PageSize),
-    wrap_response(Req, request(Client, Req, true)).
-
-%% @see perform_async/5
--spec perform_async(pid(), 'query'(), seestar:consistency()) -> any().
-perform_async(Client, Query, Consistency) ->
-    perform_async(Client, Query, Consistency, []).
-
-%% @see perform_async/5
--spec perform_async(pid(), 'query'(), seestar:consistency(), [seestar_cqltypes:value()] | non_neg_integer()) -> any().
-perform_async(Client, Query, Consistency, Values) when is_list(Values) ->
-    perform_async(Client, Query, Consistency, Values, undefined);
-perform_async(Client, Query, Consistency, PageSize) ->
-    perform_async(Client, Query, Consistency, [], PageSize).
-
-%% @doc Asynchronously perform a CQL query using the specified consistency level.
--spec perform_async(pid(), 'query'(), seestar:consistency(), [seestar_cqltypes:value()], undefined | non_neg_integer())
-        -> any().
-perform_async(Client, Query, Consistency, Values, PageSize) ->
-    Req = query_record(Query, Values, Consistency, PageSize),
-    if
-        is_number(PageSize)->
-            request(Client, Req, undefined, Req, false);
-        true ->
-            request(Client, Req, false)
-    end.
-
 %% @doc Prepare a query for later execution. The response will contain the prepared
 %% query that you will need to pass to the execute methods
 %% @see execute/3.
@@ -208,72 +165,33 @@ prepare(Client, Query) ->
     Req = #prepare{'query' = ?l2b(Query)},
     wrap_response(Req, request(Client, Req, true)).
 
-%% @see execute/5
-execute(Client, Query, Consistency) ->
-    execute(Client, Query, Consistency, undefined).
+prepare_async(Client, Query) ->
+    Req = #prepare{'query' = ?l2b(Query)},
+    request(Client, Req, false).
 
-%% @see execute/5
-execute(Client, Query, Consistency, PageSize) when is_atom(Consistency) ->
-    execute(Client, Query, [], Consistency, PageSize);
+execute(Client, #'query'{} = Query) ->
+    wrap_response(Query, request(Client, Query, true));
+execute(Client, #execute{params = #query_params{cached_result_meta = ResultMeta}} = Execute) ->
 
-%% @see execute/5
-execute(Client, QueryID, Values, Consistency)->
-    execute(Client, QueryID, Values, Consistency, undefined).
-
-
-%% @doc Synchronously execute a prepared query using the specified consistency level.
-%% Use {@link seestar_result} module functions to work with the result.
-%% @see prepare/2.
-%% @see perform/3.
--spec execute(pid(),
-              seestar_result:prepared_query(),
-              [seestar_cqltypes:value()],
-              seestar:consistency(),
-              non_neg_integer() | undefined) ->
-        {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-execute(Client, #prepared_query{id = QueryID, request_types = Types, cached_result_meta = ResultMeta}, Values, Consistency, PageSize) ->
-    Req = execute_record(QueryID, Consistency, Values, Types, PageSize, ResultMeta),
-    wrap_response(Req, request(Client, Req, undefined, ResultMeta, true)).
-
-%%
-%% @see execute_async/5
-execute_async(Client, Query, Consistency) ->
-    execute_async(Client, Query, Consistency, undefined).
-
-%% @see execute_async/5
-execute_async(Client, Query, Consistency, PageSize) when is_atom(Consistency)->
-    execute_async(Client, Query, [], Consistency, PageSize);
-%% @see execute_async/5
-execute_async(Client, QueryID, Values, Consistency)->
-    execute_async(Client, QueryID, Values, Consistency, undefined).
-
-
-%% @doc Asynchronously execute a prepared query using the specified consistency level.
-%% Use {@link seestar_result} module functions to work with the result.
-%% @see prepare/2.
--spec execute_async(pid(),
-    seestar_result:prepared_query(),
-    [seestar_cqltypes:value()],
-    seestar:consistency(),
-    non_neg_integer() | undefined) ->
-    {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
-execute_async(Client, #prepared_query{id = QueryID, cached_result_meta = CachedResultMeta, request_types = Types}, Values, Consistency, PageSize) ->
-    Req = execute_record(QueryID, Consistency, Values, Types, PageSize, CachedResultMeta),
-    if
-        is_number(PageSize)->
-            request(Client, Req, CachedResultMeta, Req, false);
-        true ->
-            request(Client, Req, undefiend, Req, false)
-    end.
-
-%% @doc Synchronously execute a batch query
-%% Use {@link seestar_batch} module functions to create the request.
-batch(Client, Req) ->
+    wrap_response(Execute,  request(Client, Execute, undefined, ResultMeta, true));
+execute(Client, Req) ->
     wrap_response(Req, request(Client, Req, true)).
 
-%% @doc Asynchronously execute a batch query
-%% Use {@link seestar_batch} module functions to create the request.
-batch_async(Client, Req) ->
+execute_async(Client, #'query'{params = #query_params{page_size = PageSize}} = Query) ->
+    if
+        is_number(PageSize)->
+            request(Client, Query, undefined, Query, false);
+        true ->
+            request(Client, Query, false)
+    end;
+execute_async(Client, #execute{params = #query_params{page_size = PageSize, cached_result_meta = CachedResultMeta}} = Query) ->
+    if
+        is_number(PageSize)->
+            request(Client, Query, CachedResultMeta, Query, false);
+        true ->
+            request(Client, Query, undefiend, Query, false)
+    end;
+execute_async(Client, Req) ->
     request(Client, Req, false).
 
 %% @doc Synchronously returns the next page for a previous paginated result
@@ -290,14 +208,15 @@ next_page_async(Client, #rows{initial_query = Req0, metadata = #metadata{paging_
 %% -------------------------------------------------------------------------
 
 %% @private
-init([Host, Port, ConnectOptions0]) ->
+init([Host, Port, ClientOptions0, ConnectOptions0]) ->
     {Timeout, ConnectOptions1} = get_timeout(ConnectOptions0),
     {Transport , ConnectOptions} = get_transport(ConnectOptions1),
+    {Pid, _ClientOptions} = get_event_listener(ClientOptions0),
     case create_socket(Host, Port, Transport, ConnectOptions, Timeout) of
         {ok, Sock} ->
             ok = socket_setopts(Sock, Transport, [binary, {packet, 0}, {active, true}]),
             {ok, #st{host = Host, sock = Sock, transport = Transport, buffer = seestar_buffer:new(),
-                     free_ids = lists:seq(0, 127), reqs = ets:new(seestar_reqs, [])}};
+                free_ids = lists:seq(0, 127), reqs = ets:new(seestar_reqs, []), event_listener = Pid}};
         {error, Reason} ->
             {stop, {connection_error, Reason}}
     end.
@@ -323,6 +242,11 @@ get_timeout(ConnectOptions0) ->
     Timeout = proplists:get_value(connect_timeout, ConnectOptions0, infinity),
     NewConnectOptions = proplists:delete(connect_timeout, ConnectOptions0),
     {Timeout, NewConnectOptions}.
+
+get_event_listener(ClientOptions) ->
+    EventListener = proplists:get_value(event_listener, ClientOptions, undefined),
+    NewClientOptions = proplists:delete(event_listener, ClientOptions),
+    {EventListener, NewClientOptions}.
 
 create_socket(Host, Port, ssl, SockOpts, Timeout) ->
     ssl:connect(Host, Port, SockOpts, Timeout);
@@ -421,16 +345,6 @@ next_page_request(#execute{} = Req0, PagingState) ->
     QueryParams = Req0#execute.params#query_params{paging_state = PagingState},
     {Req0#execute{params = QueryParams}, QueryParams#query_params.cached_result_meta}.
 
-query_record(Query, Values, Consistency, PageSize) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize,
-        values = #query_values{values = Values}},
-    #'query'{'query' = ?l2b(Query), params = QueryParams}.
-
-execute_record(QueryID, Consistency, Values, Types, PageSize, ResultMeta) ->
-    QueryParams = #query_params{consistency = Consistency, page_size = PageSize, cached_result_meta = ResultMeta,
-        values = #query_values{values = Values, types = Types}},
-    #execute{id = QueryID, params = QueryParams}.
-
 -spec request(pid(), seestar_messages:outgoing(), boolean()) -> any() | seestar_messages:incoming().
 request(Client, Request, Sync) ->
     request(Client, Request, undefined, undefined, Sync).
@@ -470,7 +384,15 @@ process_frames([Frame|Frames], St) ->
 process_frames([], St) ->
     process_backlog(St).
 
-handle_event(_Frame, St) ->
+handle_event(Frame, #st{event_listener = Pid} = St) when is_pid(Pid) ->
+    F = fun() ->
+        Op = seestar_frame:opcode(Frame),
+        Body = seestar_frame:body(Frame),
+        seestar_messages:decode(Op, Body, undefined)
+    end,
+    gen_event:notify(Pid, F),
+    St;
+handle_event(_Frame, St)->
     St.
 
 handle_response(Frame, St) ->

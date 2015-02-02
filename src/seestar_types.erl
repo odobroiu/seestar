@@ -17,7 +17,7 @@
 
 -export([encode_byte/1, encode_short/1, encode_int/1, encode_long_string/1, encode_string_list/1,
     encode_bytes/1, encode_short_bytes/1, encode_consistency/1, encode_string_map/1,
-    encode_batch_type/1]).
+    encode_batch_type/1, decode_inet/1]).
 -export([decode_int/1, decode_short/1, decode_string/1, decode_uuid/1, decode_bytes/1,
          decode_short_bytes/1, decode_consistency/1, decode_string_multimap/1]).
 
@@ -140,3 +140,24 @@ decode_string_multimap(Data, Count, Acc) ->
     {Key, Rest0} = decode_string(Data),
     {Values, Rest1} = decode_string_list(Rest0),
     decode_string_multimap(Rest1, Count - 1, [{Key, Values}|Acc]).
+
+decode_inet(Data) ->
+    {Adress, Rest0} = decode_adress(Data),
+    {Port, Rest1} = decode_port(Rest0),
+    {{Adress, Port}, Rest1}.
+
+decode_port(Data) ->
+    decode_int(Data).
+
+decode_adress(Data) ->
+    {_Size, Rest0} = decode_byte(Data),
+    {First, Rest1} = decode_byte(Rest0),
+    {Second, Rest2} = decode_byte(Rest1),
+    {Third, Rest3} = decode_byte(Rest2),
+    {Fourth, Rest4} = decode_byte(Rest3),
+    {{First, Second, Third, Fourth}, Rest4}.
+
+decode_byte(Data) ->
+    <<Value:8, Rest/binary>> = Data,
+    {Value, Rest}.
+

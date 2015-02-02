@@ -134,8 +134,15 @@ decode(?RESULT, Body, CachedDecodeData) ->
 decode(?AUTH_SUCCESS, _Body, _CachedDecodeData) ->
     #auth_success{};
 decode(?AUTH_CHALLENGE, Body, _CachedDecodeData) ->
-    #auth_challenge{body = Body}.
+    #auth_challenge{body = Body};
 
+decode(?EVENT, Body, _CachedDecodeData) ->
+    {Type, Rest} = seestar_types:decode_string(Body),
+    #event{event = case Type of
+                       <<"TOPOLOGY_CHANGE">>  -> decode_topology_change(Rest);
+                       <<"STATUS_CHANGE">>    -> decode_status_change(Rest);
+                       <<"SCHEMA_CHANGE">>    -> decode_schema_change(Rest)
+                   end}.
 %% -------------------------------------------------------------------------
 %% error details
 %% -------------------------------------------------------------------------
@@ -177,6 +184,30 @@ decode_already_exists(Data) ->
 decode_unprepared(Data) ->
     {ID, _} = seestar_types:decode_short_bytes(Data),
     #unprepared{id = ID}.
+
+%% -------------------------------------------------------------------------
+%% different events
+%% -------------------------------------------------------------------------
+
+decode_status_change(Body) ->
+    {Change, Rest0} = seestar_types:decode_string(Body),
+    {{Adress, Port}, _} = seestar_types:decode_inet(Rest0),
+    #status_change{change = status_change_type_to_atom(Change), ip = Adress, port = Port}.
+
+decode_topology_change(Body) ->
+    {Change, Rest0} = seestar_types:decode_string(Body),
+    {{Adress, Port}, _} = seestar_types:decode_inet(Rest0),
+    #topology_change{change = topology_change_type_to_atom(Change), ip = Adress, port = Port}.
+
+status_change_type_to_atom(<<"UP">>) ->
+    up;
+status_change_type_to_atom(<<"DOWN">>) ->
+    down.
+
+topology_change_type_to_atom(<<"NEW_NODE">>) ->
+    new_node;
+topology_change_type_to_atom(<<"REMOVED_NODE">>) ->
+    removed_node.
 
 %% -------------------------------------------------------------------------
 %% different result types
@@ -287,16 +318,16 @@ encode_batch_queries(QueriesList) ->
 encode_batch_query(#batch_query{kind = prepared, string_or_id = ID, values = Values}) ->
     {_Flag, EncodedValues} = values(Values),
     <<
-        (seestar_types:encode_byte(1))/binary,
-        (seestar_types:encode_short_bytes(ID))/binary,
-        EncodedValues/binary
+    (seestar_types:encode_byte(1))/binary,
+    (seestar_types:encode_short_bytes(ID))/binary,
+    EncodedValues/binary
     >>;
 encode_batch_query(#batch_query{kind = not_prepared, string_or_id = QueryString, values = Values}) ->
     {_Flag, EncodedValues} = values(Values),
     <<
-        (seestar_types:encode_byte(0))/binary,
-        (seestar_types:encode_long_string(QueryString))/binary,
-        EncodedValues/binary
+    (seestar_types:encode_byte(0))/binary,
+    (seestar_types:encode_long_string(QueryString))/binary,
+    EncodedValues/binary
     >>.
 
 encode_query_flags(QueryParams) ->

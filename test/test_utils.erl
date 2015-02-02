@@ -18,11 +18,13 @@ close(Pid) ->
 
 create_keyspace(Pid, Name, RF) ->
     Qry = "CREATE KEYSPACE ~s WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': ~w}",
-    {ok, _} = seestar_session:perform(Pid, lists:flatten(io_lib:format(Qry, [Name, RF])), one).
+    CreateKeyspaceStatement = seestar_statement:new(lists:flatten(io_lib:format(Qry, [Name, RF])), one),
+    {ok, _} = seestar_session:execute(Pid, CreateKeyspaceStatement).
 
 drop_keyspace(Pid, Name) ->
     Qry = "DROP KEYSPACE ~s",
-    {ok, _} = seestar_session:perform(Pid, lists:flatten(io_lib:format(Qry, [Name])), one).
+    DropKeyspaceStatement = seestar_statement:new(lists:flatten(io_lib:format(Qry, [Name])), one),
+    {ok, _} = seestar_session:execute(Pid, DropKeyspaceStatement).
 
 wait_for_cassandra_to_accept_connections(Retries, SleepTime) ->
     CurrentStatus = os:cmd("cqlsh"),

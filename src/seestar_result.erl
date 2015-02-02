@@ -84,7 +84,7 @@ table(#schema_change{table = Table}) ->
     Table.
 
 %% @doc Returns a prepared query from the result. The returned query can be passed to
-%% the {@link seestar_session:execute} or {@link seestar_session:execute_asyn} functions,
+%% the {@link seestar_session:execute} or {@link seestar_session:execute_async} functions,
 %% or can be used a part of a batch query using the {@link seestar_batch} module.
 -spec prepared_query(Result :: prepared_result()) -> prepared_query().
 prepared_query(#prepared{id = ID, result_metadata = ResultMetadata} = Result) ->
