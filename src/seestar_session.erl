@@ -233,7 +233,7 @@ execute(Client, QueryID, Values, Consistency)->
         {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
 execute(Client, #prepared_query{id = QueryID, request_types = Types, cached_result_meta = ResultMeta}, Values, Consistency, PageSize) ->
     Req = execute_record(QueryID, Consistency, Values, Types, PageSize, ResultMeta),
-    wrap_response(Req, request(Client, Req, undefined, ResultMeta, true)).
+    wrap_response(Req, request(Client, Req, ResultMeta, undefined, true)).
 
 %%
 %% @see execute_async/5
@@ -259,12 +259,7 @@ execute_async(Client, QueryID, Values, Consistency)->
     {ok, Result :: seestar_result:result()} | {error, Error :: seestar_error:error()}.
 execute_async(Client, #prepared_query{id = QueryID, cached_result_meta = CachedResultMeta, request_types = Types}, Values, Consistency, PageSize) ->
     Req = execute_record(QueryID, Consistency, Values, Types, PageSize, CachedResultMeta),
-    if
-        is_number(PageSize)->
-            request(Client, Req, CachedResultMeta, Req, false);
-        true ->
-            request(Client, Req, undefiend, Req, false)
-    end.
+    request(Client, Req, CachedResultMeta, Req, false).
 
 %% @doc Synchronously execute a batch query
 %% Use {@link seestar_batch} module functions to create the request.

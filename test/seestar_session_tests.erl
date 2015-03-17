@@ -26,7 +26,8 @@ session_test_() ->
                         fun(Pid) -> {with, Pid, [fun result_paging_execute_async/1]} end,
                         fun(Pid) -> {with, Pid, [fun perform_insert_update_delete/1]} end,
                         fun(Pid) -> {with, Pid, [fun batch_tests/1]} end,
-                        fun(Pid) -> {with, Pid, [fun multiple_inserts/1]} end
+                        fun(Pid) -> {with, Pid, [fun multiple_inserts/1]} end,
+                        fun(Pid) -> {with, Pid, [fun select_count/1]} end
                     ]}
             ]
         end
@@ -148,14 +149,14 @@ test_collection_types(Pid) ->
     ?assertEqual([Row1, Row0, Row2], seestar_result:rows(Res2)).
 
 result_paging_query_sync(Pid) ->
-    insert_data_for_paging(Pid),
+    insert_data(Pid, 2000),
     %% Check if updated
     {ok, PagedSelectResult} = seestar_session:perform(Pid, "SELECT * FROM seestar_test_table", one, 100),
     NumberOfRows = count_rows(Pid, PagedSelectResult),
     ?assertEqual(2000, NumberOfRows).
 
 result_paging_query_async(Pid) ->
-    insert_data_for_paging(Pid),
+    insert_data(Pid, 2000),
     %% Check if updated
     Ref = seestar_session:perform_async(Pid, "SELECT * FROM seestar_test_table", one, 100),
     receive
@@ -166,7 +167,7 @@ result_paging_query_async(Pid) ->
     end.
 
 result_paging_execute_sync(Pid) ->
-    insert_data_for_paging(Pid),
+    insert_data(Pid, 2000),
     %% Check if updated
 
     SelectQuery = "SELECT * FROM seestar_test_table",
@@ -178,7 +179,7 @@ result_paging_execute_sync(Pid) ->
     ?assertEqual(2000, NumberOfRows).
 
 result_paging_execute_async(Pid) ->
-    insert_data_for_paging(Pid),
+    insert_data(Pid, 2000),
     %% Check if updated
     SelectQuery = "SELECT * FROM seestar_test_table",
     {ok, PreparedResult} = seestar_session:prepare(Pid, SelectQuery),
@@ -255,6 +256,24 @@ multiple_inserts(Pid) ->
 
     wait_for_results(N).
 
+select_count(Pid) ->
+    NumberOfRows = 10000,
+    insert_data(Pid, NumberOfRows),
+
+    SelectCount = "SELECT count(*) from seestar_test_table",
+    {ok, Res2} = seestar_session:prepare(Pid, SelectCount),
+    PreparedCountQuery = seestar_result:prepared_query(Res2),
+    {ok, CountResult} = seestar_session:execute(Pid, PreparedCountQuery, one),
+    [[NumberOfRows]] = seestar_result:rows(CountResult),
+
+    Ref = seestar_session:execute_async(Pid, PreparedCountQuery, one),
+    receive
+        {seestar_response, Ref, F} ->
+            {ok, AsyncCountResult} = F(),
+            [[Count]] = seestar_result:rows(AsyncCountResult),
+            ?assertEqual(NumberOfRows, Count)
+    end.
+
 %% -------------------------------------------------------------------------
 %% Internal
 %% -------------------------------------------------------------------------
@@ -266,7 +285,7 @@ connect_to_keyspace(Pid)->
 drop_keyspace(Pid)->
     test_utils:drop_keyspace(Pid, "seestar").
 
-insert_data_for_paging(Pid) ->
+insert_data(Pid, NumberOfRows) ->
     CreateTable = <<"CREATE TABLE seestar_test_table (id int primary key, value text)">>,
     {ok, _Res2} = seestar_session:perform(Pid, CreateTable, one),
     InsertQuery = <<"INSERT INTO seestar_test_table(id, value) values (?, ?)">>,
@@ -274,7 +293,7 @@ insert_data_for_paging(Pid) ->
     QueryID = seestar_result:prepared_query(PreparedResult),
     PreparedQueriesList = [
         seestar_batch:prepared_query(QueryID, [I, <<"The fox">>])
-        || I <- lists:seq(1, 2000)
+        || I <- lists:seq(1, NumberOfRows)
     ],
     Batch = seestar_batch:batch_request(logged, one, PreparedQueriesList),
     {ok, void} = seestar_session:batch(Pid, Batch).
